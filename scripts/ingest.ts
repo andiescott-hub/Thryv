@@ -19,22 +19,27 @@
  *   OPENAI_API_KEY, OPENAI_BASE_URL (if using openai provider)
  */
 
-// Load .env.local before anything else
 import { resolve, extname, basename } from 'node:path';
 import { readdirSync, existsSync, statSync } from 'node:fs';
 
-// Manually load .env.local since this script runs outside Next.js
+// ---------------------------------------------------------------------------
+// Load .env.local FIRST (top-level await, before any local lib imports)
+// Local lib modules read env vars at initialisation time, so dotenv must run
+// before they are imported. We use dynamic imports for lib modules below.
+// ---------------------------------------------------------------------------
 try {
-  const { config } = await import('dotenv');
-  config({ path: resolve(process.cwd(), '.env.local') });
+  const dotenv = await import('dotenv');
+  dotenv.default.config({ path: resolve(process.cwd(), '.env.local') });
 } catch {
-  // dotenv not installed – rely on shell env
+  // dotenv not available – rely on shell env
 }
 
-import { chunkFile, type Chunk } from '../lib/chunking.js';
-import { getEmbeddingsBatch } from '../lib/embeddings.js';
-import { addChunks, countChunks, deleteByFilename } from '../lib/vector.js';
-import { ChromaClient } from 'chromadb';
+// Dynamic imports AFTER dotenv has populated process.env
+const { chunkFile } = await import('../lib/chunking.js');
+const { getEmbeddingsBatch } = await import('../lib/embeddings.js');
+const { addChunks, countChunks, deleteByFilename } = await import('../lib/vector.js');
+
+import type { Chunk } from '../lib/chunking.js';
 
 const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md']);
 
