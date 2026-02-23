@@ -22,7 +22,9 @@ import { getEmbedding } from '@/lib/embeddings';
 import { queryCollection } from '@/lib/vector';
 import { generateAnswer } from '@/lib/llm';
 
-const TOP_K = 6;
+const TOP_K = 15;
+const DISTANCE_THRESHOLD = 0.75; // cosine distance; lower = more similar (0–2 range)
+const MIN_CHUNKS = 3;            // always keep at least this many chunks
 const MAX_QUESTION_LENGTH = 1000;
 
 export async function POST(request: NextRequest) {
@@ -117,6 +119,10 @@ export async function POST(request: NextRequest) {
       { status: 200, headers: rateLimitHeaders },
     );
   }
+
+  // Filter out low-relevance chunks but always keep at least MIN_CHUNKS
+  const relevant = chunks.filter((c) => c.distance <= DISTANCE_THRESHOLD);
+  chunks = relevant.length >= MIN_CHUNKS ? relevant : chunks.slice(0, MIN_CHUNKS);
 
   // -------------------------------------------------------------------------
   // 5. LLM answer generation
