@@ -20,7 +20,6 @@
  */
 
 // Load .env.local before anything else
-import { config as loadEnv } from 'node:process';
 import { resolve, extname, basename } from 'node:path';
 import { readdirSync, existsSync, statSync } from 'node:fs';
 
