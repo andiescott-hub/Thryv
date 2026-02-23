@@ -71,7 +71,7 @@ A production-ready Retrieval-Augmented Generation (RAG) web application built wi
 |------|---------|
 | Node.js | ≥ 18 |
 | Docker | any recent |
-| Ollama | latest |
+| OpenAI API key | [platform.openai.com](https://platform.openai.com/api-keys) |
 
 ### 2. Clone and install
 
@@ -87,13 +87,15 @@ npm install
 cp .env.local.example .env.local
 ```
 
-Edit `.env.local`:
+Edit `.env.local` — paste your OpenAI key in both places:
 
 ```env
-LLM_API_KEY=your_moonshot_key   # https://platform.moonshot.cn
-EMBEDDING_PROVIDER=ollama
-OLLAMA_URL=http://localhost:11434
-EMBEDDING_MODEL=nomic-embed-text
+LLM_API_KEY=sk-your_openai_key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-your_openai_key
+EMBEDDING_MODEL=text-embedding-3-small
 CHROMA_URL=http://localhost:8000
 ```
 
@@ -103,13 +105,7 @@ CHROMA_URL=http://localhost:8000
 docker run -p 8000:8000 chromadb/chroma
 ```
 
-### 5. Pull embedding model
-
-```bash
-ollama pull nomic-embed-text
-```
-
-### 6. Add documents
+### 5. Add documents
 
 Drop your PDF and/or spreadsheet files into the `/documents` directory.
 
@@ -152,19 +148,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Embedding Providers
 
-### Option A – Ollama (local, default)
-
-```env
-EMBEDDING_PROVIDER=ollama
-OLLAMA_URL=http://localhost:11434
-EMBEDDING_MODEL=nomic-embed-text
-```
-
-Recommended models:
-- `nomic-embed-text` (768-dim, fast)
-- `mxbai-embed-large` (1024-dim, higher quality)
-
-### Option B – OpenAI-compatible API
+### Option A – OpenAI (default)
 
 ```env
 EMBEDDING_PROVIDER=openai
@@ -173,16 +157,30 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 EMBEDDING_MODEL=text-embedding-3-small
 ```
 
+Recommended models:
+- `text-embedding-3-small` (1536-dim, fast, low cost — default)
+- `text-embedding-3-large` (3072-dim, higher quality)
+
+### Option B – Ollama (local, no API key)
+
+```env
+EMBEDDING_PROVIDER=ollama
+OLLAMA_URL=http://localhost:11434
+EMBEDDING_MODEL=nomic-embed-text
+```
+
+Requires [Ollama](https://ollama.com) running locally: `ollama pull nomic-embed-text`
+
 ---
 
 ## LLM Configuration
 
-The app targets **kimi-k2.5** via the [Moonshot AI API](https://platform.moonshot.cn), which is OpenAI-SDK-compatible.
+The app defaults to **gpt-4o-mini** via the OpenAI API.
 
 ```env
-LLM_API_KEY=your_key
-LLM_BASE_URL=https://api.moonshot.cn/v1
-LLM_MODEL=kimi-k2.5
+LLM_API_KEY=sk-your_openai_key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
 LLM_MAX_TOKENS=2048
 ```
 
@@ -265,11 +263,11 @@ git push origin main
 In Vercel dashboard → Project Settings → Environment Variables, add:
 
 ```
-LLM_API_KEY          = your_moonshot_key
-LLM_BASE_URL         = https://api.moonshot.cn/v1
-LLM_MODEL            = kimi-k2.5
+LLM_API_KEY          = sk-your_openai_key
+LLM_BASE_URL         = https://api.openai.com/v1
+LLM_MODEL            = gpt-4o-mini
 EMBEDDING_PROVIDER   = openai
-OPENAI_API_KEY       = sk-...
+OPENAI_API_KEY       = sk-your_openai_key
 EMBEDDING_MODEL      = text-embedding-3-small
 CHROMA_URL           = https://your-chroma-instance.example.com
 CHROMA_COLLECTION    = documents
