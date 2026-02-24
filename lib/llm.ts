@@ -14,7 +14,7 @@ import type { RetrievedChunk } from './vector';
 
 const BASE_URL = process.env.LLM_BASE_URL ?? 'https://api.moonshot.cn/v1';
 const MODEL = process.env.LLM_MODEL ?? 'kimi-k2.5';
-const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? '2048');
+const MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? '4096');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,6 +52,11 @@ Rules:
 - Cite the source of each claim using the reference number shown in the context block, e.g. [1], [2].
 - If the answer cannot be found in the context, respond exactly: "I could not find this information in the provided documents."
 - For broad or summary questions (e.g. "what do I need to know", "summarise", "what's new", "key points", "overview"), cover ALL key points found across every context block — do not stop after the first match.
+- For questions about "latest", "most recent", "newest", "current", or "updated" information:
+  • Scan EVERY context block for explicit date or time references (years, months, version numbers, "as of", "effective", "updated", "revised", quarter labels, etc.).
+  • Identify the block(s) with the most recent date and prioritise that content.
+  • Explicitly state the date or period the most recent information is from (e.g. "As of Q3 2024…").
+  • If multiple blocks contain different dates, compare them and clearly indicate which is newest.
 - For specific factual questions, be direct and precise.
 - Use bullet points when listing multiple distinct items; this improves readability.
 

@@ -22,10 +22,16 @@ import { getEmbedding } from '@/lib/embeddings';
 import { queryCollection } from '@/lib/vector';
 import { generateAnswer } from '@/lib/llm';
 
-const TOP_K = 15;
-const DISTANCE_THRESHOLD = 0.75; // cosine distance; lower = more similar (0–2 range)
-const MIN_CHUNKS = 3;            // always keep at least this many chunks
+const TOP_K = 25;                // wider net → less likely to miss relevant pages
+const DISTANCE_THRESHOLD = 0.82; // slightly looser – avoids over-filtering valid chunks
+const MIN_CHUNKS = 5;            // always keep at least this many chunks
 const MAX_QUESTION_LENGTH = 1000;
+
+// Keywords that signal a recency/temporal intent
+const TEMPORAL_KEYWORDS = [
+  'latest', 'most recent', 'newest', 'current', 'recent', 'updated',
+  'new', 'last', 'today', 'now', 'this year', 'this month',
+];
 
 export async function POST(request: NextRequest) {
   // -------------------------------------------------------------------------
@@ -123,6 +129,14 @@ export async function POST(request: NextRequest) {
   // Filter out low-relevance chunks but always keep at least MIN_CHUNKS
   const relevant = chunks.filter((c) => c.distance <= DISTANCE_THRESHOLD);
   chunks = relevant.length >= MIN_CHUNKS ? relevant : chunks.slice(0, MIN_CHUNKS);
+
+  // For temporal queries ("latest", "most recent", etc.) boost later pages to the
+  // front so the LLM sees the newest content first in its context window.
+  const lowerQ = question.toLowerCase();
+  const isTemporal = TEMPORAL_KEYWORDS.some((kw) => lowerQ.includes(kw));
+  if (isTemporal) {
+    chunks = [...chunks].sort((a, b) => b.page - a.page);
+  }
 
   // -------------------------------------------------------------------------
   // 5. LLM answer generation

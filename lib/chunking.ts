@@ -70,57 +70,87 @@ async function chunkPDF(filePath: string): Promise<Chunk[]> {
   const allChunks: Chunk[] = [];
   let globalChunkIndex = 0;
 
-  // Collect per-page text using the pagerender callback
+  // Collect per-page text using the pagerender callback.
+  // We also capture the parsed data to get numpages so we can validate
+  // that the callback was invoked for EVERY page (some pdf-parse versions
+  // only fire for page 1, leaving pageTexts with length 1 instead of 0,
+  // which previously bypassed the fallback entirely).
   const pageTexts: string[] = [];
+  let parsedData: any = null;
 
-  await pdfParse(buffer, {
-    // pagerender is called once per page; the return value is the text for that page
-    pagerender: (pageData: any) =>
-      pageData.getTextContent().then((tc: any) => {
-        const pageText = tc.items
-          .map((item: any) => item.str)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        pageTexts.push(pageText);
-        return pageText;
-      }),
-  });
+  try {
+    parsedData = await pdfParse(buffer, {
+      max: 0, // 0 = process ALL pages (explicit, never rely on default)
+      pagerender: (pageData: any) =>
+        pageData
+          .getTextContent()
+          .then((tc: any) => {
+            const pageText = tc.items
+              .map((item: any) => item.str)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            pageTexts.push(pageText);
+            return pageText;
+          })
+          .catch(() => {
+            // Keep pageTexts in sync even when a single page fails
+            pageTexts.push('');
+            return '';
+          }),
+    });
+  } catch {
+    // pagerender pass failed entirely – fall through to bulk parse
+  }
 
-  // If pagerender produced no results fall back to bulk text
-  if (pageTexts.length === 0) {
-    const data = await pdfParse(buffer);
-    const estCharsPerPage =
-      data.text.length / Math.max(data.numpages ?? 1, 1);
-    let i = 0;
-    while (i < data.text.length) {
-      const end = Math.min(i + CHUNK_SIZE, data.text.length);
-      const slice = data.text.slice(i, end).trim();
-      if (slice.length >= 40) {
-        const page = Math.max(
-          1,
-          Math.ceil((i + CHUNK_SIZE / 2) / estCharsPerPage),
-        );
-        allChunks.push({
-          id: `${filename}::p${page}::c${globalChunkIndex}`,
-          text: slice,
-          filename,
-          page,
-          chunkIndex: globalChunkIndex++,
-        });
-      }
-      if (end === data.text.length) break;
-      i = end - OVERLAP;
-    }
+  const totalPages: number = parsedData?.numpages ?? 0;
+
+  // Only use per-page results when the callback fired for every page.
+  // If pageTexts.length < totalPages some pages were silently skipped.
+  if (pageTexts.length > 0 && (totalPages === 0 || pageTexts.length >= totalPages)) {
+    pageTexts.forEach((text, idx) => {
+      const pageChunks = splitText(text, filename, idx + 1, globalChunkIndex);
+      globalChunkIndex += pageChunks.length;
+      allChunks.push(...pageChunks);
+    });
     return allChunks;
   }
 
-  // Page-by-page chunking
-  pageTexts.forEach((text, idx) => {
-    const pageChunks = splitText(text, filename, idx + 1, globalChunkIndex);
-    globalChunkIndex += pageChunks.length;
-    allChunks.push(...pageChunks);
-  });
+  // Fallback: bulk-text parse with character-position page estimation.
+  // Re-use the already-parsed data when available to avoid a second I/O round.
+  let bulkData: any;
+  try {
+    bulkData = parsedData ?? (await pdfParse(buffer, { max: 0 }));
+  } catch {
+    return allChunks;
+  }
+
+  const fullText: string = bulkData?.text ?? '';
+  if (fullText.length === 0) return allChunks;
+
+  const pages = Math.max(bulkData?.numpages ?? 1, 1);
+  const estCharsPerPage = fullText.length / pages;
+
+  let i = 0;
+  while (i < fullText.length) {
+    const end = Math.min(i + CHUNK_SIZE, fullText.length);
+    const slice = fullText.slice(i, end).trim();
+    if (slice.length >= 40) {
+      const page = Math.max(
+        1,
+        Math.ceil((i + CHUNK_SIZE / 2) / estCharsPerPage),
+      );
+      allChunks.push({
+        id: `${filename}::p${page}::c${globalChunkIndex}`,
+        text: slice,
+        filename,
+        page,
+        chunkIndex: globalChunkIndex++,
+      });
+    }
+    if (end === fullText.length) break;
+    i = end - OVERLAP;
+  }
 
   return allChunks;
 }
