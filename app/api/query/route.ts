@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[/api/query] Vector retrieval error:', err);
     return NextResponse.json(
-      { error: 'Failed to retrieve context from vector store. Is Chroma running?' },
+      { error: 'Failed to retrieve context from vector store. Check PINECONE_API_KEY config.' },
       { status: 500, headers: rateLimitHeaders },
     );
   }

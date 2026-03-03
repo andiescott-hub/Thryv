@@ -11,26 +11,26 @@
     "ingest": "tsx scripts/ingest.ts"
   },
   "dependencies": {
-    "next": "^14.2.15",
+    "@pinecone-database/pinecone": "^7.1.0",
     "dotenv": "^16.4.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "chromadb": "^1.9.2",
+    "next": "^14.2.15",
     "openai": "^4.67.0",
     "pdf-parse": "^1.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
+    "@types/pdf-parse": "^1.1.4",
     "@types/react": "^18.3.4",
     "@types/react-dom": "^18.3.0",
-    "@types/pdf-parse": "^1.1.4",
-    "typescript": "^5.5.4",
-    "tailwindcss": "^3.4.10",
-    "postcss": "^8.4.41",
     "autoprefixer": "^10.4.20",
-    "tsx": "^4.19.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.15"
+    "eslint-config-next": "^14.2.15",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
   }
 }

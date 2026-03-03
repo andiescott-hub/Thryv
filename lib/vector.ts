@@ -1,23 +1,16 @@
 /**
- * Chroma vector store abstraction.
- *
- * Connects to a running Chroma HTTP server. In development, run:
- *   docker run -p 8000:8000 chromadb/chroma
- * or:
- *   pip install chromadb && chroma run
- *
- * For production (Vercel), point CHROMA_URL at a hosted Chroma instance
- * (e.g. Chroma Cloud, Railway, Fly.io, etc.).
+ * Pinecone vector store abstraction.
  *
  * Environment variables:
- *   CHROMA_URL         = http://localhost:8000
- *   CHROMA_COLLECTION  = documents  (default)
+ *   PINECONE_API_KEY   – Your Pinecone API key
+ *   PINECONE_INDEX     – Name of the Pinecone index (default: "documents")
  */
 
+import { Pinecone } from '@pinecone-database/pinecone';
 import type { Chunk } from './chunking';
 
-const CHROMA_URL = process.env.CHROMA_URL ?? 'http://localhost:8000';
-const COLLECTION_NAME = process.env.CHROMA_COLLECTION ?? 'documents';
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY ?? '';
+const INDEX_NAME = process.env.PINECONE_INDEX ?? 'documents';
 
 export interface RetrievedChunk {
   text: string;
@@ -28,23 +21,17 @@ export interface RetrievedChunk {
 }
 
 // ---------------------------------------------------------------------------
-// Singleton collection handle (re-used across warm Lambda invocations)
+// Singleton index handle (re-used across warm Lambda invocations)
 // ---------------------------------------------------------------------------
 
-let _collectionCache: import('chromadb').Collection | null = null;
+let _indexCache: ReturnType<Pinecone['index']> | null = null;
 
-async function getCollection(): Promise<import('chromadb').Collection> {
-  if (_collectionCache) return _collectionCache;
+function getIndex() {
+  if (_indexCache) return _indexCache;
 
-  const { ChromaClient } = await import('chromadb');
-  const client = new ChromaClient({ path: CHROMA_URL });
-
-  _collectionCache = await client.getOrCreateCollection({
-    name: COLLECTION_NAME,
-    metadata: { 'hnsw:space': 'cosine' },
-  });
-
-  return _collectionCache;
+  const pc = new Pinecone({ apiKey: PINECONE_API_KEY });
+  _indexCache = pc.index({ name: INDEX_NAME });
+  return _indexCache;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,8 +39,8 @@ async function getCollection(): Promise<import('chromadb').Collection> {
 // ---------------------------------------------------------------------------
 
 /**
- * Add a batch of chunks with their pre-computed embeddings to Chroma.
- * Idempotent – duplicate IDs are skipped by Chroma.
+ * Add a batch of chunks with their pre-computed embeddings to Pinecone.
+ * Upserts in batches of 100 (Pinecone's recommended batch size).
  */
 export async function addChunks(
   chunks: Chunk[],
@@ -61,35 +48,43 @@ export async function addChunks(
 ): Promise<void> {
   if (chunks.length === 0) return;
 
-  const collection = await getCollection();
+  const index = getIndex();
+  const BATCH_SIZE = 100;
 
-  await collection.add({
-    ids: chunks.map((c) => c.id),
-    embeddings,
-    documents: chunks.map((c) => c.text),
-    metadatas: chunks.map((c) => ({
-      filename: c.filename,
-      page: c.page,
-      chunkIndex: c.chunkIndex,
-    })),
-  });
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, i + BATCH_SIZE);
+    const batchEmbeddings = embeddings.slice(i, i + BATCH_SIZE);
+
+    const records = batch.map((c, j) => ({
+      id: c.id,
+      values: batchEmbeddings[j],
+      metadata: {
+        text: c.text,
+        filename: c.filename,
+        page: c.page,
+        chunkIndex: c.chunkIndex,
+      },
+    }));
+
+    await index.upsert({ records });
+  }
 }
 
 /**
  * Delete all chunks belonging to a specific source file.
- * Useful for re-ingesting updated documents.
  */
 export async function deleteByFilename(filename: string): Promise<void> {
-  const collection = await getCollection();
-  await collection.delete({ where: { filename } });
+  const index = getIndex();
+  await index.deleteMany({ filter: { filename: { $eq: filename } } });
 }
 
 /**
- * Return the total number of chunks stored in the collection.
+ * Return the total number of chunks stored in the index.
  */
 export async function countChunks(): Promise<number> {
-  const collection = await getCollection();
-  return collection.count();
+  const index = getIndex();
+  const stats = await index.describeIndexStats();
+  return stats.totalRecordCount ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,29 +92,35 @@ export async function countChunks(): Promise<number> {
 // ---------------------------------------------------------------------------
 
 /**
- * Query the collection for the top-k chunks most similar to the query embedding.
+ * Query the index for the top-k chunks most similar to the query embedding.
+ * Pinecone returns scores in [0, 1] for cosine similarity (higher = more similar).
+ * We convert to distance (1 - score) to keep the same interface as before.
  */
 export async function queryCollection(
   queryEmbedding: number[],
   topK = 6,
 ): Promise<RetrievedChunk[]> {
-  const collection = await getCollection();
+  const index = getIndex();
 
-  const results = await collection.query({
-    queryEmbeddings: [queryEmbedding],
-    nResults: topK,
-    include: ['documents', 'metadatas', 'distances'] as any,
+  const results = await index.query({
+    vector: queryEmbedding,
+    topK,
+    includeMetadata: true,
   });
 
-  const documents = results.documents?.[0] ?? [];
-  const metadatas = results.metadatas?.[0] ?? [];
-  const distances = results.distances?.[0] ?? [];
-
-  return documents.map((doc, i) => ({
-    text: doc ?? '',
-    filename: (metadatas[i] as any)?.filename ?? 'unknown',
-    page: Number((metadatas[i] as any)?.page ?? 1),
-    chunkIndex: Number((metadatas[i] as any)?.chunkIndex ?? i),
-    distance: distances[i] ?? 1,
+  return (results.matches ?? []).map((match) => ({
+    text: (match.metadata?.text as string) ?? '',
+    filename: (match.metadata?.filename as string) ?? 'unknown',
+    page: Number(match.metadata?.page ?? 1),
+    chunkIndex: Number(match.metadata?.chunkIndex ?? 0),
+    distance: 1 - (match.score ?? 0),
   }));
+}
+
+/**
+ * Delete the entire index contents. Used by ingest --clear.
+ */
+export async function clearIndex(): Promise<void> {
+  const index = getIndex();
+  await index.deleteAll();
 }

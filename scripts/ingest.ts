@@ -14,7 +14,7 @@
  *   --file <path>     Ingest a single file instead of the whole /documents dir
  *
  * Environment variables (same as the app – load from .env.local automatically):
- *   CHROMA_URL, CHROMA_COLLECTION
+ *   PINECONE_API_KEY, PINECONE_INDEX
  *   EMBEDDING_PROVIDER, OLLAMA_URL, EMBEDDING_MODEL
  *   OPENAI_API_KEY, OPENAI_BASE_URL (if using openai provider)
  */
@@ -37,7 +37,7 @@ try {
 // Dynamic imports AFTER dotenv has populated process.env
 const { chunkFile } = await import('../lib/chunking.js');
 const { getEmbeddingsBatch } = await import('../lib/embeddings.js');
-const { addChunks, countChunks, deleteByFilename } = await import('../lib/vector.js');
+const { addChunks, countChunks, deleteByFilename, clearIndex } = await import('../lib/vector.js');
 
 import type { Chunk } from '../lib/chunking.js';
 
@@ -65,16 +65,11 @@ function logError(msg: string, err?: unknown) {
 }
 
 async function clearCollection() {
-  const { ChromaClient } = await import('chromadb');
-  const client = new ChromaClient({
-    path: process.env.CHROMA_URL ?? 'http://localhost:8000',
-  });
-  const name = process.env.CHROMA_COLLECTION ?? 'documents';
   try {
-    await client.deleteCollection({ name });
-    log(`Collection "${name}" deleted.`);
+    await clearIndex();
+    log('Pinecone index cleared.');
   } catch {
-    log(`Collection "${name}" did not exist – skipping delete.`);
+    log('Could not clear index – it may already be empty.');
   }
 }
 
@@ -121,12 +116,12 @@ async function ingestFile(filePath: string): Promise<{ chunks: number; skipped: 
     return { chunks: 0, skipped: true };
   }
 
-  // Upsert into Chroma (delete old version first to allow re-ingestion)
+  // Upsert into Pinecone (delete old version first to allow re-ingestion)
   try {
     await deleteByFilename(filename);
     await addChunks(chunks, embeddings);
   } catch (err) {
-    logError(`Failed to write chunks to Chroma for ${filename}`, err);
+    logError(`Failed to write chunks to Pinecone for ${filename}`, err);
     return { chunks: 0, skipped: true };
   }
 
