@@ -72,10 +72,34 @@ export async function addChunks(
 
 /**
  * Delete all chunks belonging to a specific source file.
+ *
+ * Pinecone serverless indexes do not support metadata-filter deletes
+ * (the /vectors/delete endpoint returns 404 for filter-based requests).
+ * Instead, we list vector IDs by their filename prefix and delete by ID.
+ * Chunk IDs follow the pattern: `${filename}::p${page}::c${chunkIndex}`
  */
 export async function deleteByFilename(filename: string): Promise<void> {
   const index = getIndex();
-  await index.deleteMany({ filter: { filename: { $eq: filename } } });
+  const prefix = `${filename}::`;
+
+  const ids: string[] = [];
+  let paginationToken: string | undefined;
+
+  do {
+    const result = await index.listPaginated({ prefix, paginationToken });
+    for (const v of result.vectors ?? []) {
+      if (v.id) ids.push(v.id);
+    }
+    paginationToken = result.pagination?.next;
+  } while (paginationToken);
+
+  if (ids.length === 0) return;
+
+  // Pinecone allows up to 1 000 IDs per delete request
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    await index.deleteMany({ ids: ids.slice(i, i + BATCH_SIZE) });
+  }
 }
 
 /**

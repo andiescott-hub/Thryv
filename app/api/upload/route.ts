@@ -65,8 +65,14 @@ export async function POST(request: NextRequest) {
     // Embed
     const embeddings = await getEmbeddingsBatch(chunks.map((c) => c.text));
 
-    // Store in Pinecone (delete old version first for idempotent re-uploads)
-    await deleteByFilename(file.name);
+    // Best-effort delete of any existing vectors for this file before upserting.
+    // Some Pinecone serverless configurations reject /vectors/delete with 404;
+    // upsert is idempotent (same deterministic IDs), so we can safely continue.
+    try {
+      await deleteByFilename(file.name);
+    } catch (deleteErr) {
+      console.warn('[/api/upload] Could not delete existing vectors (proceeding with upsert):', deleteErr);
+    }
     await addChunks(chunks, embeddings);
 
     return NextResponse.json({
