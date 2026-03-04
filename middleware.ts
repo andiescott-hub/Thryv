@@ -19,9 +19,10 @@ export function middleware(request: NextRequest) {
 
   // Only apply strict rules to our API routes
   if (pathname.startsWith('/api/')) {
-    // Reject suspiciously large bodies early (>50 KB)
+    // Reject suspiciously large bodies early — but exempt the upload route
     const contentLength = request.headers.get('content-length');
-    if (contentLength && Number(contentLength) > 50_000) {
+    const bodyLimit = pathname === '/api/upload' ? 5 * 1024 * 1024 : 50_000; // 5 MB for uploads, 50 KB otherwise
+    if (contentLength && Number(contentLength) > bodyLimit) {
       return new NextResponse(
         JSON.stringify({ error: 'Request body too large' }),
         { status: 413, headers: { 'Content-Type': 'application/json' } },

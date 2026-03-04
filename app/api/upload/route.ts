@@ -17,7 +17,7 @@ import { chunkFile } from '@/lib/chunking';
 import { getEmbeddingsBatch } from '@/lib/embeddings';
 import { addChunks, deleteByFilename } from '@/lib/vector';
 
-const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md']);
+const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md', '.docx', '.pptx']);
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5 MB
 
 export async function POST(request: NextRequest) {
@@ -75,9 +75,10 @@ export async function POST(request: NextRequest) {
       chunks: chunks.length,
     });
   } catch (err) {
-    console.error('[/api/upload] Error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[/api/upload] Error:', message, err);
     return NextResponse.json(
-      { error: 'Failed to process file. Please try again.' },
+      { error: `Failed to process file: ${message}` },
       { status: 500 },
     );
   } finally {
