@@ -55,6 +55,31 @@ function persistThreads(threads: Thread[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Logo
+// ---------------------------------------------------------------------------
+
+function ThryvLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const fontSize = size === 'sm' ? '1.1rem' : '1.4rem';
+  return (
+    <span
+      style={{
+        fontSize,
+        fontWeight: 800,
+        letterSpacing: '-0.02em',
+        lineHeight: 1,
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: '1px',
+        userSelect: 'none',
+      }}
+    >
+      <span style={{ color: '#fff' }}>thryv</span>
+      <span style={{ color: 'var(--accent)' }}>.</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
@@ -64,10 +89,10 @@ function CitationCard({ citation }: { citation: Citation }) {
   return (
     <div
       style={{
-        background: 'var(--surface-2)',
+        background: 'rgba(255,255,255,0.04)',
         border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '10px 12px',
+        borderRadius: '10px',
+        padding: '10px 14px',
         fontSize: '0.78rem',
         lineHeight: '1.5',
       }}
@@ -86,8 +111,7 @@ function CitationCard({ citation }: { citation: Citation }) {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            fontWeight: 600,
-            color: 'var(--accent)',
+            overflow: 'hidden',
           }}
         >
           <span
@@ -96,16 +120,26 @@ function CitationCard({ citation }: { citation: Citation }) {
               color: 'var(--accent)',
               borderRadius: '4px',
               padding: '1px 6px',
-              fontSize: '0.7rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
+              flexShrink: 0,
             }}
           >
             [{citation.id}]
           </span>
-          <span style={{ color: 'var(--text)', wordBreak: 'break-all' }}>
+          <span
+            style={{
+              color: 'var(--text)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {citation.filename}
           </span>
-          <span style={{ color: 'var(--text-muted)' }}>p.{citation.page}</span>
+          <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+            p.{citation.page}
+          </span>
         </span>
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -114,11 +148,11 @@ function CitationCard({ citation }: { citation: Citation }) {
             border: 'none',
             color: 'var(--text-muted)',
             cursor: 'pointer',
-            fontSize: '0.75rem',
+            fontSize: '0.72rem',
             whiteSpace: 'nowrap',
             padding: '2px 4px',
+            flexShrink: 0,
           }}
-          aria-label={expanded ? 'Collapse excerpt' : 'Expand excerpt'}
         >
           {expanded ? '▲ hide' : '▼ excerpt'}
         </button>
@@ -150,16 +184,15 @@ function ChatMessage({ message }: { message: Message }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
-        gap: '8px',
+        gap: '6px',
         maxWidth: '100%',
       }}
     >
-      {/* Role label */}
       <span
         style={{
-          fontSize: '0.7rem',
+          fontSize: '0.65rem',
           fontWeight: 700,
-          letterSpacing: '0.05em',
+          letterSpacing: '0.1em',
           textTransform: 'uppercase',
           color: isUser ? 'var(--accent)' : 'var(--text-muted)',
           paddingInline: '4px',
@@ -168,16 +201,19 @@ function ChatMessage({ message }: { message: Message }) {
         {isUser ? 'You' : 'Assistant'}
       </span>
 
-      {/* Bubble */}
       <div
         style={{
-          background: isUser ? 'var(--user-bubble)' : 'var(--assistant-bubble)',
-          border: isUser ? '1px solid var(--accent-dim)' : '1px solid var(--border)',
-          borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          padding: '12px 16px',
-          maxWidth: '80%',
-          lineHeight: '1.65',
-          fontSize: '0.925rem',
+          background: isUser
+            ? 'linear-gradient(135deg, #1e3570 0%, #1a2d5e 100%)'
+            : 'rgba(255,255,255,0.04)',
+          border: isUser
+            ? '1px solid rgba(255,85,0,0.25)'
+            : '1px solid var(--border)',
+          borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          padding: '12px 18px',
+          maxWidth: '78%',
+          lineHeight: '1.7',
+          fontSize: '0.92rem',
           color: message.isError ? 'var(--error)' : 'var(--text)',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
@@ -187,11 +223,10 @@ function ChatMessage({ message }: { message: Message }) {
         {message.text}
       </div>
 
-      {/* Citations */}
       {message.citations && message.citations.length > 0 && (
         <div
           style={{
-            width: '80%',
+            width: '78%',
             display: 'flex',
             flexDirection: 'column',
             gap: '6px',
@@ -199,9 +234,9 @@ function ChatMessage({ message }: { message: Message }) {
         >
           <span
             style={{
-              fontSize: '0.7rem',
+              fontSize: '0.65rem',
               fontWeight: 700,
-              letterSpacing: '0.05em',
+              letterSpacing: '0.1em',
               textTransform: 'uppercase',
               color: 'var(--text-muted)',
               paddingInline: '4px',
@@ -230,39 +265,34 @@ function TypingIndicator() {
     >
       <span
         style={{
-          fontSize: '0.7rem',
+          fontSize: '0.65rem',
           fontWeight: 700,
-          letterSpacing: '0.05em',
+          letterSpacing: '0.1em',
           textTransform: 'uppercase',
           color: 'var(--text-muted)',
         }}
       >
         Assistant
       </span>
-      <span
-        style={{
-          display: 'flex',
-          gap: '4px',
-          alignItems: 'center',
-        }}
-      >
+      <span style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
         {[0, 1, 2].map((i) => (
           <span
             key={i}
             style={{
               width: '6px',
               height: '6px',
-              background: 'var(--text-muted)',
+              background: 'var(--accent)',
               borderRadius: '50%',
-              animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+              opacity: 0.6,
+              animation: `thryvPulse 1.2s ease-in-out ${i * 0.2}s infinite`,
             }}
           />
         ))}
       </span>
       <style>{`
-        @keyframes pulse {
+        @keyframes thryvPulse {
           0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-          40% { opacity: 1; transform: scale(1); }
+          40%            { opacity: 1;   transform: scale(1);   }
         }
       `}</style>
     </div>
@@ -281,18 +311,14 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
-  // Thread state
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState('');
-
-  // Ingested documents
   const [ingestedFiles, setIngestedFiles] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // On mount: load threads from localStorage and assign a new active thread ID
   useEffect(() => {
     const saved = loadThreads();
     setThreads(saved);
@@ -300,7 +326,6 @@ export default function ChatPage() {
     fetchIngestedFiles();
   }, []);
 
-  // Persist active thread whenever messages change
   useEffect(() => {
     if (messages.length === 0 || !activeThreadId) return;
     const title =
@@ -314,12 +339,10 @@ export default function ChatPage() {
     });
   }, [messages, activeThreadId]);
 
-  // Auto-scroll on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -335,7 +358,7 @@ export default function ChatPage() {
         setIngestedFiles(data.filenames ?? []);
       }
     } catch {
-      // silently ignore – sidebar will just show empty
+      // silently ignore
     }
   }
 
@@ -362,11 +385,7 @@ export default function ChatPage() {
     setInput('');
     setError(null);
 
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      text: question,
-    };
+    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text: question };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
@@ -379,10 +398,11 @@ export default function ChatPage() {
 
       if (res.status === 429) {
         const reset = res.headers.get('X-RateLimit-Reset');
-        const msg = reset
-          ? `Rate limit exceeded. Try again after ${new Date(Number(reset) * 1000).toLocaleTimeString()}.`
-          : 'Rate limit exceeded. Please wait a moment.';
-        setError(msg);
+        setError(
+          reset
+            ? `Rate limit exceeded. Try again after ${new Date(Number(reset) * 1000).toLocaleTimeString()}.`
+            : 'Rate limit exceeded. Please wait a moment.',
+        );
         setLoading(false);
         return;
       }
@@ -396,33 +416,18 @@ export default function ChatPage() {
       if (!res.ok || data.error) {
         setMessages((prev) => [
           ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            text: data.error ?? 'An unexpected error occurred.',
-            isError: true,
-          },
+          { id: crypto.randomUUID(), role: 'assistant', text: data.error ?? 'An unexpected error occurred.', isError: true },
         ]);
       } else {
         setMessages((prev) => [
           ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            text: data.answer ?? '',
-            citations: data.citations ?? [],
-          },
+          { id: crypto.randomUUID(), role: 'assistant', text: data.answer ?? '', citations: data.citations ?? [] },
         ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: 'Network error – could not reach the server.',
-          isError: true,
-        },
+        { id: crypto.randomUUID(), role: 'assistant', text: 'Network error – could not reach the server.', isError: true },
       ]);
     } finally {
       setLoading(false);
@@ -454,14 +459,8 @@ export default function ChatPage() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
         const data = await res.json();
-
         if (!res.ok || data.error) {
           errors.push(`${file.name}: ${data.error ?? 'Upload failed.'}`);
         } else {
@@ -473,98 +472,91 @@ export default function ChatPage() {
     }
 
     if (results.length > 0) {
-      setUploadStatus(`Ingested ${results.length} file(s): ${results.join(', ')}. You can now ask questions about them.`);
-      // Refresh the document list
+      setUploadStatus(
+        `Ingested ${results.length} file(s): ${results.join(', ')}. You can now ask questions about them.`,
+      );
       await fetchIngestedFiles();
     } else {
       setUploadStatus(null);
     }
-    if (errors.length > 0) {
-      setError(errors.join(' | '));
-    }
+    if (errors.length > 0) setError(errors.join(' | '));
 
     setUploading(false);
-    // Reset file input so the same files can be re-uploaded
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   const isEmpty = messages.length === 0;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100dvh',
-        background: 'var(--bg)',
-      }}
-    >
+    <div style={{ display: 'flex', height: '100dvh' }}>
+
       {/* ------------------------------------------------------------------ */}
       {/* Sidebar                                                              */}
       {/* ------------------------------------------------------------------ */}
       <aside
         style={{
-          width: '220px',
+          width: '230px',
+          background: 'rgba(15, 24, 56, 0.85)',
           borderRight: '1px solid var(--border)',
-          background: 'var(--surface)',
           display: 'flex',
           flexDirection: 'column',
           flexShrink: 0,
           overflow: 'hidden',
         }}
       >
-        {/* New Thread button */}
+        {/* Brand mark */}
         <div
           style={{
-            padding: '16px',
+            padding: '20px 20px 16px',
             borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
           }}
         >
+          <ThryvLogo size="sm" />
+          <span
+            style={{
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              borderLeft: '1px solid var(--border)',
+              paddingLeft: '10px',
+            }}
+          >
+            Docs AI
+          </span>
+        </div>
+
+        {/* New Thread */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <button
             onClick={handleNewThread}
-            style={{
-              width: '100%',
-              background: 'var(--accent)',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              padding: '9px 12px',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="btn-primary"
+            style={{ width: '100%', padding: '9px 14px' }}
           >
             + New Thread
           </button>
         </div>
 
         {/* Thread history */}
-        <div
-          style={{
-            padding: '12px 12px 8px',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <p
             style={{
-              margin: '0 0 8px',
-              fontSize: '0.65rem',
+              margin: '0 0 10px',
+              fontSize: '0.62rem',
               fontWeight: 700,
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              letterSpacing: '0.05em',
               color: 'var(--text-muted)',
             }}
           >
             Recent Threads
           </p>
           {threads.length === 0 ? (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-                fontStyle: 'italic',
-              }}
-            >
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
               No threads yet.
             </p>
           ) : (
@@ -572,19 +564,20 @@ export default function ChatPage() {
               <button
                 key={thread.id}
                 onClick={() => handleSwitchThread(thread)}
+                title={thread.title}
                 style={{
                   display: 'block',
                   width: '100%',
                   background:
                     thread.id === activeThreadId
-                      ? 'var(--surface-2)'
+                      ? 'rgba(255,85,0,0.1)'
                       : 'transparent',
                   border:
                     thread.id === activeThreadId
-                      ? '1px solid var(--border)'
+                      ? '1px solid rgba(255,85,0,0.3)'
                       : '1px solid transparent',
-                  borderRadius: '6px',
-                  color: 'var(--text)',
+                  borderRadius: '8px',
+                  color: thread.id === activeThreadId ? '#fff' : 'var(--text-muted)',
                   padding: '7px 10px',
                   fontSize: '0.78rem',
                   cursor: 'pointer',
@@ -593,8 +586,8 @@ export default function ChatPage() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   marginBottom: '3px',
+                  transition: 'all 0.15s',
                 }}
-                title={thread.title}
               >
                 {thread.title}
               </button>
@@ -603,34 +596,21 @@ export default function ChatPage() {
         </div>
 
         {/* Indexed documents */}
-        <div
-          style={{
-            padding: '12px 12px',
-            flex: 1,
-            overflow: 'auto',
-          }}
-        >
+        <div style={{ padding: '14px 16px', flex: 1, overflow: 'auto' }}>
           <p
             style={{
-              margin: '0 0 8px',
-              fontSize: '0.65rem',
+              margin: '0 0 10px',
+              fontSize: '0.62rem',
               fontWeight: 700,
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              letterSpacing: '0.05em',
               color: 'var(--text-muted)',
             }}
           >
             Indexed Documents
           </p>
           {ingestedFiles.length === 0 ? (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-                fontStyle: 'italic',
-              }}
-            >
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
               No documents indexed.
             </p>
           ) : (
@@ -640,18 +620,16 @@ export default function ChatPage() {
                 title={f}
                 style={{
                   fontSize: '0.75rem',
-                  color: 'var(--text)',
+                  color: 'var(--text-muted)',
                   padding: '4px 0',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '6px',
+                  overflow: 'hidden',
                 }}
               >
-                <span style={{ flexShrink: 0, color: 'var(--text-muted)' }}>📄</span>
-                <span>{f}</span>
+                <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: '0.7rem' }}>▪</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
               </div>
             ))
           )}
@@ -659,110 +637,68 @@ export default function ChatPage() {
       </aside>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Main content                                                         */}
+      {/* Main area                                                            */}
       {/* ------------------------------------------------------------------ */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+
+        {/* Header / nav bar */}
         <header
           style={{
-            borderBottom: '1px solid var(--border)',
-            padding: '14px 24px',
+            padding: '0 28px',
+            height: '62px',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            background: 'var(--surface)',
+            justifyContent: 'space-between',
+            background: 'rgba(15, 24, 56, 0.7)',
+            borderBottom: '1px solid var(--border)',
             flexShrink: 0,
+            backdropFilter: 'blur(8px)',
           }}
         >
-          <div
+          <div>
+            <ThryvLogo />
+          </div>
+
+          <p
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'var(--accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: '#fff',
+              margin: 0,
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.04em',
             }}
           >
-            T
-          </div>
-          <div style={{ flex: 1 }}>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: 'var(--text)',
-              }}
+            Document Intelligence
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
+              multiple
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="btn-primary"
+              style={{ padding: '9px 20px' }}
             >
-              Thryv Document Intelligence
-            </h1>
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-              }}
-            >
-              Ask questions about your indexed documents
-            </p>
+              {uploading ? 'Uploading…' : 'Upload & Ingest'}
+            </button>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
-            multiple
-            onChange={handleFileUpload}
-            style={{ display: 'none' }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            style={{
-              background: uploading ? 'var(--surface-2)' : 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              color: uploading ? 'var(--text-muted)' : 'var(--text)',
-              padding: '8px 14px',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'border-color 0.15s',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              if (!uploading) (e.target as HTMLButtonElement).style.borderColor = 'var(--accent)';
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.borderColor = 'var(--border)';
-            }}
-            aria-label="Upload document"
-          >
-            {uploading ? 'Uploading...' : 'Upload & Ingest'}
-          </button>
         </header>
 
-        {/* Message list */}
+        {/* Messages */}
         <main
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '24px',
+            padding: '32px 40px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '24px',
+            gap: '28px',
           }}
         >
           {isEmpty && !loading && (
@@ -773,35 +709,56 @@ export default function ChatPage() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '16px',
-                color: 'var(--text-muted)',
+                gap: '20px',
                 textAlign: 'center',
-                padding: '40px 24px',
+                padding: '60px 24px',
               }}
             >
-              <div style={{ fontSize: '2.5rem' }}>📄</div>
+              <ThryvLogo size="md" />
               <h2
                 style={{
                   margin: 0,
-                  fontSize: '1.2rem',
-                  fontWeight: 600,
-                  color: 'var(--text)',
+                  fontSize: '1.6rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                  letterSpacing: '-0.02em',
                 }}
               >
-                Ask anything about your documents
+                Ask anything about your documents.
               </h2>
-              <p style={{ margin: 0, maxWidth: '400px', lineHeight: '1.6' }}>
-                Type a question below. The system will search your indexed PDFs
-                and spreadsheets and return cited answers.
+              <p
+                style={{
+                  margin: 0,
+                  maxWidth: '420px',
+                  lineHeight: '1.7',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.92rem',
+                }}
+              >
+                Upload PDFs, spreadsheets, or text files — then ask questions
+                and get cited answers instantly.
               </p>
+
+              {/* Divider */}
               <div
                 style={{
-                  marginTop: '8px',
+                  width: '48px',
+                  height: '3px',
+                  borderRadius: '99px',
+                  background: 'var(--accent)',
+                  margin: '4px 0',
+                }}
+              />
+
+              {/* Prompt chips */}
+              <div
+                style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '8px',
+                  gap: '10px',
                   width: '100%',
-                  maxWidth: '480px',
+                  maxWidth: '500px',
+                  marginTop: '4px',
                 }}
               >
                 {[
@@ -813,24 +770,24 @@ export default function ChatPage() {
                     key={q}
                     onClick={() => setInput(q)}
                     style={{
-                      background: 'var(--surface)',
+                      background: 'rgba(255,255,255,0.04)',
                       border: '1px solid var(--border)',
                       borderRadius: '10px',
                       color: 'var(--text)',
-                      padding: '10px 16px',
-                      fontSize: '0.85rem',
+                      padding: '11px 18px',
+                      fontSize: '0.86rem',
                       cursor: 'pointer',
                       textAlign: 'left',
-                      transition: 'border-color 0.15s',
+                      transition: 'border-color 0.15s, background 0.15s',
                     }}
-                    onMouseEnter={(e) =>
-                      ((e.target as HTMLButtonElement).style.borderColor =
-                        'var(--accent)')
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.target as HTMLButtonElement).style.borderColor =
-                        'var(--border)')
-                    }
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,85,0,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+                    }}
                   >
                     {q}
                   </button>
@@ -852,11 +809,11 @@ export default function ChatPage() {
         {uploadStatus && (
           <div
             style={{
-              padding: '10px 24px',
-              background: '#142a14',
-              borderTop: '1px solid #204a20',
-              color: '#6fcf6f',
-              fontSize: '0.85rem',
+              padding: '10px 28px',
+              background: 'rgba(76, 175, 136, 0.1)',
+              borderTop: '1px solid rgba(76,175,136,0.25)',
+              color: 'var(--success)',
+              fontSize: '0.84rem',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -865,15 +822,7 @@ export default function ChatPage() {
             <span>{uploadStatus}</span>
             <button
               onClick={() => setUploadStatus(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#6fcf6f',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                padding: '0 4px',
-              }}
-              aria-label="Dismiss"
+              style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
             >
               ×
             </button>
@@ -884,11 +833,11 @@ export default function ChatPage() {
         {error && (
           <div
             style={{
-              padding: '10px 24px',
-              background: '#2a1414',
-              borderTop: '1px solid #4a2020',
+              padding: '10px 28px',
+              background: 'rgba(224, 92, 92, 0.1)',
+              borderTop: '1px solid rgba(224,92,92,0.25)',
               color: 'var(--error)',
-              fontSize: '0.85rem',
+              fontSize: '0.84rem',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -897,32 +846,25 @@ export default function ChatPage() {
             <span>{error}</span>
             <button
               onClick={() => setError(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--error)',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                padding: '0 4px',
-              }}
-              aria-label="Dismiss error"
+              style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
             >
               ×
             </button>
           </div>
         )}
 
-        {/* Input area */}
+        {/* Input bar */}
         <form
           onSubmit={handleSubmit}
           style={{
+            padding: '16px 28px 20px',
+            background: 'rgba(15, 24, 56, 0.7)',
             borderTop: '1px solid var(--border)',
-            padding: '16px 24px',
-            background: 'var(--surface)',
             display: 'flex',
             gap: '12px',
             alignItems: 'flex-end',
             flexShrink: 0,
+            backdropFilter: 'blur(8px)',
           }}
         >
           <textarea
@@ -930,47 +872,33 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
+            placeholder="Ask a question about your documents…"
             rows={1}
             disabled={loading}
+            maxLength={1000}
+            aria-label="Question input"
             style={{
               flex: 1,
               resize: 'none',
-              background: 'var(--surface-2)',
+              background: 'rgba(255,255,255,0.05)',
               border: '1px solid var(--border)',
               borderRadius: '12px',
               color: 'var(--text)',
-              padding: '12px 16px',
-              fontSize: '0.925rem',
+              padding: '13px 18px',
+              fontSize: '0.92rem',
               lineHeight: '1.5',
               outline: 'none',
               transition: 'border-color 0.15s',
               overflowY: 'auto',
             }}
-            onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
-            onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
-            maxLength={1000}
-            aria-label="Question input"
+            onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
+            onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            style={{
-              background: loading || !input.trim() ? 'var(--surface-2)' : 'var(--accent)',
-              border: '1px solid',
-              borderColor:
-                loading || !input.trim() ? 'var(--border)' : 'var(--accent)',
-              borderRadius: '12px',
-              color: loading || !input.trim() ? 'var(--text-muted)' : '#fff',
-              padding: '12px 20px',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-            aria-label="Send question"
+            className="btn-primary"
+            style={{ padding: '13px 24px', flexShrink: 0 }}
           >
             {loading ? 'Thinking…' : 'Send'}
           </button>
