@@ -186,8 +186,8 @@ function ChatMessage({ message }: { message: Message }) {
   const isUser = message.role === 'user';
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
-  // Strip [n] citation markers from rendered text
-  const cleanText = message.text.replace(/\[\d+\]/g, '');
+  // Strip [n] and [n, m, ...] citation markers from rendered text
+  const cleanText = message.text.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '');
 
   return (
     <div
