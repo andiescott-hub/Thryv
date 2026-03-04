@@ -98,7 +98,7 @@ export async function deleteByFilename(filename: string): Promise<void> {
   // Pinecone allows up to 1 000 IDs per delete request
   const BATCH_SIZE = 1000;
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    await index.deleteMany(ids.slice(i, i + BATCH_SIZE));
+    await index.deleteMany({ ids: ids.slice(i, i + BATCH_SIZE) });
   }
 }
 
