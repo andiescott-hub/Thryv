@@ -546,7 +546,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', position: 'relative' }}>
+    <div style={{ display: 'flex', position: 'fixed', inset: 0 }}>
 
       {/* ------------------------------------------------------------------ */}
       {/* Sidebar — desktop only                                               */}
