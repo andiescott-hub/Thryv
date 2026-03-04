@@ -352,6 +352,8 @@ export default function ChatPage() {
 
   // Indexed documents (desktop sidebar)
   const [ingestedFiles, setIngestedFiles] = useState<string[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -400,6 +402,23 @@ export default function ChatPage() {
       }
     } catch {
       // silently ignore
+    }
+  }
+
+  async function handleDeleteDocument(filename: string) {
+    setDeleting(true);
+    try {
+      await fetch('/api/documents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+      await fetchIngestedFiles();
+    } catch {
+      // silently ignore
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
     }
   }
 
@@ -525,7 +544,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100dvh' }}>
+    <div style={{ display: 'flex', height: '100dvh', position: 'relative' }}>
 
       {/* ------------------------------------------------------------------ */}
       {/* Sidebar — desktop only                                               */}
@@ -661,7 +680,34 @@ export default function ChatPage() {
                 }}
               >
                 <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: '0.7rem' }}>▪</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{f}</span>
+                <button
+                  onClick={() => setDeleteConfirm(f)}
+                  title="Remove document"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    padding: '0 2px',
+                    lineHeight: 1,
+                    flexShrink: 0,
+                    fontFamily: 'inherit',
+                    opacity: 0.6,
+                    transition: 'opacity 0.15s, color 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--error)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.opacity = '0.6';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             ))
           )}
@@ -868,7 +914,7 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question about your documents…"
+            placeholder="Ask a question"
             rows={1}
             disabled={loading}
             maxLength={1000}
@@ -901,6 +947,78 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
+
+      {/* Confirmation modal */}
+      {deleteConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              padding: '28px 28px 24px',
+              maxWidth: '360px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: '#fff' }}>
+              Remove document?
+            </p>
+            <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.6', wordBreak: 'break-all' }}>
+              <strong style={{ color: 'var(--text)' }}>{deleteConfirm}</strong> will be permanently removed from the index and will no longer appear in answers.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '8px 18px',
+                  fontSize: '0.84rem',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteDocument(deleteConfirm)}
+                disabled={deleting}
+                style={{
+                  background: 'rgba(224,92,92,0.15)',
+                  border: '1px solid rgba(224,92,92,0.4)',
+                  borderRadius: '8px',
+                  color: 'var(--error)',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  padding: '8px 18px',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {deleting ? 'Removing…' : 'Yes, remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
