@@ -3,6 +3,28 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 
 // ---------------------------------------------------------------------------
+// Suggested prompts
+// ---------------------------------------------------------------------------
+
+const ALL_PROMPTS = [
+  "What problems does Thryv solve for a small business like mine (leads, bookings, reviews, payments, customer follow-up), and which products cover each one?",
+  "What's included in each Thryv package/tier, and what's the monthly price (plus any setup fees or contract terms)?",
+  "How does Thryv help me get more leads (SEO, Google Business Profile, paid ads, website), and how do you prove the results with reporting?",
+  "Can Thryv build or rebuild my website, and how do updates work (who edits it, how fast, what's self-serve vs done-for-you)?",
+  "How does Thryv manage enquiries once they come in—calls, web forms, texts, emails—and can it automatically follow up so leads don't get missed?",
+  "Does Thryv include online booking and scheduling, and can customers pay or leave deposits when they book?",
+  "What's the CRM capability—can I track customers, quotes/jobs, follow-ups, pipelines, reminders, and see everything in one place?",
+  "How do reviews work—can you request Google reviews automatically, respond in one place, and handle negative review workflows?",
+  "Can Thryv integrate with the tools I already use (Google/Microsoft email & calendar, QuickBooks/Xero, payment terminals, Zapier, etc.)?",
+  "What support and onboarding do you provide (implementation timeline, training, ongoing support), and what happens if I want to cancel or change plans later?",
+];
+
+function pickThreePrompts(): string[] {
+  const shuffled = [...ALL_PROMPTS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -280,6 +302,7 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
 
   // Thread state (desktop sidebar)
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -297,6 +320,7 @@ export default function ChatPage() {
     setThreads(loadThreads());
     setActiveThreadId(crypto.randomUUID());
     fetchIngestedFiles();
+    setSuggestedPrompts(pickThreePrompts());
   }, []);
 
   // Persist active thread whenever messages change
@@ -343,6 +367,7 @@ export default function ChatPage() {
     setInput('');
     setError(null);
     setUploadStatus(null);
+    setSuggestedPrompts(pickThreePrompts());
   }
 
   function handleSwitchThread(thread: Thread) {
@@ -692,11 +717,7 @@ export default function ChatPage() {
               <div style={{ width: '44px', height: '3px', borderRadius: '99px', background: 'var(--accent)' }} />
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '480px' }}>
-                {[
-                  'What were the Q3 marketing spend figures?',
-                  'Summarise the key campaign outcomes from the annual report.',
-                  'Which products had the highest conversion rate?',
-                ].map((q) => (
+                {suggestedPrompts.map((q) => (
                   <button
                     key={q}
                     onClick={() => setInput(q)}
