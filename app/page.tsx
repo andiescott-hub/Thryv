@@ -21,6 +21,37 @@ interface Message {
   isError?: boolean;
 }
 
+interface Thread {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Thread persistence helpers (localStorage)
+// ---------------------------------------------------------------------------
+
+const THREADS_KEY = 'thryv_threads';
+const MAX_THREADS = 3;
+
+function loadThreads(): Thread[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(THREADS_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function persistThreads(threads: Thread[]) {
+  if (typeof window === 'undefined') return;
+  const sorted = [...threads]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, MAX_THREADS);
+  localStorage.setItem(THREADS_KEY, JSON.stringify(sorted));
+}
+
 // ---------------------------------------------------------------------------
 // Logo
 // ---------------------------------------------------------------------------
@@ -153,7 +184,7 @@ function ChatMessage({ message }: { message: Message }) {
       </span>
 
       <div
-        className="bubble-max"
+        className="answer-text bubble-max"
         style={{
           background: isUser
             ? 'linear-gradient(135deg, #1e3570 0%, #1a2d5e 100%)'
@@ -169,7 +200,6 @@ function ChatMessage({ message }: { message: Message }) {
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
-        className="answer-text bubble-max"
       >
         {message.text}
       </div>
@@ -248,11 +278,41 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  // Thread state (desktop sidebar)
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState('');
+
+  // Indexed documents (desktop sidebar)
+  const [ingestedFiles, setIngestedFiles] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll on new messages
+  // On mount: load threads and document list
+  useEffect(() => {
+    setThreads(loadThreads());
+    setActiveThreadId(crypto.randomUUID());
+    fetchIngestedFiles();
+  }, []);
+
+  // Persist active thread whenever messages change
+  useEffect(() => {
+    if (messages.length === 0 || !activeThreadId) return;
+    const title = messages.find((m) => m.role === 'user')?.text.slice(0, 50) ?? 'Untitled';
+    const updated: Thread = { id: activeThreadId, title, messages, updatedAt: Date.now() };
+    setThreads((prev) => {
+      const without = prev.filter((t) => t.id !== activeThreadId);
+      const next = [updated, ...without];
+      persistThreads(next);
+      return next.slice(0, MAX_THREADS);
+    });
+  }, [messages, activeThreadId]);
+
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
@@ -264,6 +324,33 @@ export default function ChatPage() {
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [input]);
+
+  async function fetchIngestedFiles() {
+    try {
+      const res = await fetch('/api/documents');
+      if (res.ok) {
+        const data = await res.json();
+        setIngestedFiles(data.filenames ?? []);
+      }
+    } catch {
+      // silently ignore
+    }
+  }
+
+  function handleNewThread() {
+    setMessages([]);
+    setActiveThreadId(crypto.randomUUID());
+    setInput('');
+    setError(null);
+    setUploadStatus(null);
+  }
+
+  function handleSwitchThread(thread: Thread) {
+    setMessages(thread.messages);
+    setActiveThreadId(thread.id);
+    setError(null);
+    setUploadStatus(null);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -329,220 +416,428 @@ export default function ChatPage() {
     }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-      {/* Header */}
-      <header
-        className="chat-header"
+    setUploading(true);
+    setUploadStatus(null);
+    setError(null);
+
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadStatus(`Uploading ${i + 1} of ${files.length}: "${file.name}"…`);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          errors.push(`${file.name}: ${data.error ?? 'Upload failed.'}`);
+        } else {
+          results.push(`"${data.filename}" (${data.chunks} chunks)`);
+        }
+      } catch {
+        errors.push(`${file.name}: Network error.`);
+      }
+    }
+
+    if (results.length > 0) {
+      setUploadStatus(`Ingested ${results.length} file(s): ${results.join(', ')}.`);
+      await fetchIngestedFiles();
+    } else {
+      setUploadStatus(null);
+    }
+    if (errors.length > 0) setError(errors.join(' | '));
+
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100dvh' }}>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Sidebar — desktop only                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <aside
+        className="desktop-only"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'rgba(15, 24, 56, 0.7)',
-          borderBottom: '1px solid var(--border)',
+          width: '230px',
+          background: 'rgba(15, 24, 56, 0.85)',
+          borderRight: '1px solid var(--border)',
+          flexDirection: 'column',
           flexShrink: 0,
-          backdropFilter: 'blur(8px)',
+          overflow: 'hidden',
         }}
       >
-        <ThryvLogo />
-        <span
+        {/* Brand mark */}
+        <div
           style={{
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)',
-            letterSpacing: '0.06em',
+            padding: '20px 20px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
           }}
         >
-          Document Intelligence
-        </span>
-      </header>
-
-      {/* Messages */}
-      <main
-        className="chat-main"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
-        {messages.length === 0 && !loading && (
-          <div
+          <ThryvLogo />
+          <span
             style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '18px',
-              textAlign: 'center',
-              padding: '40px 8px',
+              fontSize: '0.62rem',
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              borderLeft: '1px solid var(--border)',
+              paddingLeft: '10px',
             }}
           >
-            <ThryvLogo />
-            <h2
-              className="empty-headline"
-              style={{
-                margin: 0,
-                fontWeight: 800,
-                color: '#fff',
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Ask anything about your documents.
-            </h2>
-            <p
-              style={{
-                margin: 0,
-                maxWidth: '400px',
-                lineHeight: '1.7',
-                color: 'var(--text-muted)',
-                fontSize: '0.9rem',
-              }}
-            >
-              Upload your files, then ask questions and get cited answers instantly.
+            Docs AI
+          </span>
+        </div>
+
+        {/* New Thread */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+          <button
+            onClick={handleNewThread}
+            className="btn-primary"
+            style={{ width: '100%', padding: '9px 14px' }}
+          >
+            + New Thread
+          </button>
+        </div>
+
+        {/* Thread history */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+          <p
+            style={{
+              margin: '0 0 10px',
+              fontSize: '0.62rem',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Recent Threads
+          </p>
+          {threads.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No threads yet.
             </p>
+          ) : (
+            threads.map((thread) => (
+              <button
+                key={thread.id}
+                onClick={() => handleSwitchThread(thread)}
+                title={thread.title}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  background: thread.id === activeThreadId ? 'rgba(255,85,0,0.1)' : 'transparent',
+                  border: thread.id === activeThreadId ? '1px solid rgba(255,85,0,0.3)' : '1px solid transparent',
+                  borderRadius: '8px',
+                  color: thread.id === activeThreadId ? '#fff' : 'var(--text-muted)',
+                  padding: '7px 10px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginBottom: '3px',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {thread.title}
+              </button>
+            ))
+          )}
+        </div>
 
-            <div
-              style={{
-                width: '44px',
-                height: '3px',
-                borderRadius: '99px',
-                background: 'var(--accent)',
-              }}
+        {/* Indexed documents */}
+        <div style={{ padding: '14px 16px', flex: 1, overflow: 'auto' }}>
+          <p
+            style={{
+              margin: '0 0 10px',
+              fontSize: '0.62rem',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Indexed Documents
+          </p>
+          {ingestedFiles.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              No documents indexed.
+            </p>
+          ) : (
+            ingestedFiles.map((f) => (
+              <div
+                key={f}
+                title={f}
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  padding: '4px 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  overflow: 'hidden',
+                }}
+              >
+                <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: '0.7rem' }}>▪</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Main area                                                            */}
+      {/* ------------------------------------------------------------------ */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+
+        {/* Header */}
+        <header
+          className="chat-header"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(15, 24, 56, 0.7)',
+            borderBottom: '1px solid var(--border)',
+            flexShrink: 0,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <ThryvLogo />
+
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+            Document Intelligence
+          </span>
+
+          {/* Upload button — desktop only */}
+          <div className="desktop-only" style={{ alignItems: 'center' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
+              multiple
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
             />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="btn-primary"
+              style={{ padding: '9px 20px' }}
+            >
+              {uploading ? 'Uploading…' : 'Upload & Ingest'}
+            </button>
+          </div>
+        </header>
 
+        {/* Messages */}
+        <main
+          className="chat-main"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}
+        >
+          {messages.length === 0 && !loading && (
             <div
               style={{
+                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px',
-                width: '100%',
-                maxWidth: '480px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '18px',
+                textAlign: 'center',
+                padding: '40px 8px',
               }}
             >
-              {[
-                'What were the Q3 marketing spend figures?',
-                'Summarise the key campaign outcomes from the annual report.',
-                'Which products had the highest conversion rate?',
-              ].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setInput(q)}
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '10px',
-                    color: 'var(--text)',
-                    padding: '11px 18px',
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontFamily: 'inherit',
-                    transition: 'border-color 0.15s, background 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
-                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,85,0,0.06)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
-                  }}
-                >
-                  {q}
-                </button>
-              ))}
+              <ThryvLogo />
+              <h2
+                className="empty-headline"
+                style={{ margin: 0, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}
+              >
+                Ask anything about your documents.
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  maxWidth: '400px',
+                  lineHeight: '1.7',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.9rem',
+                }}
+              >
+                Upload your files, then ask questions and get cited answers instantly.
+              </p>
+
+              <div style={{ width: '44px', height: '3px', borderRadius: '99px', background: 'var(--accent)' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '480px' }}>
+                {[
+                  'What were the Q3 marketing spend figures?',
+                  'Summarise the key campaign outcomes from the annual report.',
+                  'Which products had the highest conversion rate?',
+                ].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setInput(q)}
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      color: 'var(--text)',
+                      padding: '11px 18px',
+                      fontSize: '0.86rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'inherit',
+                      transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,85,0,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+
+          {loading && <TypingIndicator />}
+
+          <div ref={messagesEndRef} />
+        </main>
+
+        {/* Upload success banner */}
+        {uploadStatus && (
+          <div
+            style={{
+              padding: '10px 20px',
+              background: 'rgba(76, 175, 136, 0.1)',
+              borderTop: '1px solid rgba(76,175,136,0.25)',
+              color: 'var(--success)',
+              fontSize: '0.84rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span>{uploadStatus}</span>
+            <button
+              onClick={() => setUploadStatus(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', fontFamily: 'inherit' }}
+            >
+              ×
+            </button>
           </div>
         )}
 
-        {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
-        ))}
-
-        {loading && <TypingIndicator />}
-
-        <div ref={messagesEndRef} />
-      </main>
-
-      {/* Error banner */}
-      {error && (
-        <div
-          style={{
-            padding: '10px 20px',
-            background: 'rgba(224, 92, 92, 0.1)',
-            borderTop: '1px solid rgba(224,92,92,0.25)',
-            color: 'var(--error)',
-            fontSize: '0.84rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', fontFamily: 'inherit' }}
+        {/* Error banner */}
+        {error && (
+          <div
+            style={{
+              padding: '10px 20px',
+              background: 'rgba(224, 92, 92, 0.1)',
+              borderTop: '1px solid rgba(224,92,92,0.25)',
+              color: 'var(--error)',
+              fontSize: '0.84rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
           >
-            ×
-          </button>
-        </div>
-      )}
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', fontFamily: 'inherit' }}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
-      {/* Input bar */}
-      <form
-        onSubmit={handleSubmit}
-        className="chat-form"
-        style={{
-          background: 'rgba(15, 24, 56, 0.7)',
-          borderTop: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'flex-end',
-          flexShrink: 0,
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your documents…"
-          rows={1}
-          disabled={loading}
-          maxLength={1000}
-          aria-label="Question input"
+        {/* Input bar */}
+        <form
+          onSubmit={handleSubmit}
+          className="chat-form"
           style={{
-            flex: 1,
-            resize: 'none',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            color: 'var(--text)',
-            padding: '13px 16px',
-            fontSize: '0.92rem',
-            lineHeight: '1.5',
-            outline: 'none',
-            transition: 'border-color 0.15s',
-            overflowY: 'auto',
-            fontFamily: 'inherit',
+            background: 'rgba(15, 24, 56, 0.7)',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            flexShrink: 0,
+            backdropFilter: 'blur(8px)',
           }}
-          onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
-          onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="btn-primary"
-          style={{ padding: '13px 22px', flexShrink: 0 }}
         >
-          {loading ? '…' : 'Send'}
-        </button>
-      </form>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask a question about your documents…"
+            rows={1}
+            disabled={loading}
+            maxLength={1000}
+            aria-label="Question input"
+            style={{
+              flex: 1,
+              resize: 'none',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              color: 'var(--text)',
+              padding: '13px 16px',
+              fontSize: '0.92rem',
+              lineHeight: '1.5',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+              overflowY: 'auto',
+              fontFamily: 'inherit',
+            }}
+            onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
+            onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="btn-primary"
+            style={{ padding: '13px 22px', flexShrink: 0 }}
+          >
+            {loading ? '…' : 'Send'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

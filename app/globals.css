@@ -91,6 +91,9 @@ body {
 
 .empty-headline { font-size: 1.6rem; }
 
+/* Desktop-only elements (sidebar, upload button) */
+.desktop-only { display: flex; }
+
 @media (max-width: 640px) {
   .chat-header {
     padding: 0 16px;
@@ -111,4 +114,7 @@ body {
   .cite-max   { width: 92%; }
 
   .empty-headline { font-size: 1.2rem; }
+
+  /* Hide sidebar and upload button on mobile */
+  .desktop-only { display: none !important; }
 }
