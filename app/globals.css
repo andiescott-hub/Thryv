@@ -80,6 +80,7 @@ body {
 .chat-main {
   padding: 32px 40px;
   gap: 28px;
+  overflow-x: hidden;
 }
 
 .chat-form {
@@ -88,7 +89,7 @@ body {
 }
 
 .bubble-max  { max-width: 78%; }
-.cite-max    { width: 78%; }
+.cite-max    { max-width: 78%; }
 
 .empty-headline { font-size: 1.6rem; }
 
@@ -112,7 +113,7 @@ body {
   }
 
   .bubble-max { max-width: 92%; }
-  .cite-max   { width: 92%; }
+  .cite-max   { max-width: 92%; }
 
   .empty-headline { font-size: 1.2rem; }
 
