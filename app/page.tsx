@@ -13,11 +13,9 @@ interface Citation {
   excerpt: string;
 }
 
-type Role = 'user' | 'assistant';
-
 interface Message {
   id: string;
-  role: Role;
+  role: 'user' | 'assistant';
   text: string;
   citations?: Citation[];
   isError?: boolean;
@@ -58,18 +56,14 @@ function persistThreads(threads: Thread[]) {
 // Logo
 // ---------------------------------------------------------------------------
 
-function ThryvLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const fontSize = size === 'sm' ? '1.1rem' : '1.4rem';
+function ThryvLogo() {
   return (
     <span
       style={{
-        fontSize,
+        fontSize: '1.4rem',
         fontWeight: 800,
         letterSpacing: '-0.02em',
         lineHeight: 1,
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: '1px',
         userSelect: 'none',
       }}
     >
@@ -80,7 +74,7 @@ function ThryvLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// CitationCard
 // ---------------------------------------------------------------------------
 
 function CitationCard({ citation }: { citation: Citation }) {
@@ -106,14 +100,7 @@ function CitationCard({ citation }: { citation: Citation }) {
           marginBottom: expanded ? '8px' : 0,
         }}
       >
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            overflow: 'hidden',
-          }}
-        >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
           <span
             style={{
               background: 'var(--accent-dim)',
@@ -127,19 +114,10 @@ function CitationCard({ citation }: { citation: Citation }) {
           >
             [{citation.id}]
           </span>
-          <span
-            style={{
-              color: 'var(--text)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <span style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {citation.filename}
           </span>
-          <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-            p.{citation.page}
-          </span>
+          <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>p.{citation.page}</span>
         </span>
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -152,6 +130,7 @@ function CitationCard({ citation }: { citation: Citation }) {
             whiteSpace: 'nowrap',
             padding: '2px 4px',
             flexShrink: 0,
+            fontFamily: 'inherit',
           }}
         >
           {expanded ? '▲ hide' : '▼ excerpt'}
@@ -175,6 +154,10 @@ function CitationCard({ citation }: { citation: Citation }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// ChatMessage
+// ---------------------------------------------------------------------------
+
 function ChatMessage({ message }: { message: Message }) {
   const isUser = message.role === 'user';
 
@@ -185,12 +168,11 @@ function ChatMessage({ message }: { message: Message }) {
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
         gap: '6px',
-        maxWidth: '100%',
       }}
     >
       <span
         style={{
-          fontSize: '0.65rem',
+          fontSize: '0.62rem',
           fontWeight: 700,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
@@ -202,6 +184,7 @@ function ChatMessage({ message }: { message: Message }) {
       </span>
 
       <div
+        className="answer-text bubble-max"
         style={{
           background: isUser
             ? 'linear-gradient(135deg, #1e3570 0%, #1a2d5e 100%)'
@@ -211,30 +194,21 @@ function ChatMessage({ message }: { message: Message }) {
             : '1px solid var(--border)',
           borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
           padding: '12px 18px',
-          maxWidth: '78%',
           lineHeight: '1.7',
           fontSize: '0.92rem',
           color: message.isError ? 'var(--error)' : 'var(--text)',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
-        className="answer-text"
       >
         {message.text}
       </div>
 
       {message.citations && message.citations.length > 0 && (
-        <div
-          style={{
-            width: '78%',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}
-        >
+        <div className="cite-max" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <span
             style={{
-              fontSize: '0.65rem',
+              fontSize: '0.62rem',
               fontWeight: 700,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
@@ -253,19 +227,16 @@ function ChatMessage({ message }: { message: Message }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// TypingIndicator
+// ---------------------------------------------------------------------------
+
 function TypingIndicator() {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        paddingInline: '4px',
-      }}
-    >
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingInline: '4px' }}>
       <span
         style={{
-          fontSize: '0.65rem',
+          fontSize: '0.62rem',
           fontWeight: 700,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
@@ -283,7 +254,6 @@ function TypingIndicator() {
               height: '6px',
               background: 'var(--accent)',
               borderRadius: '50%',
-              opacity: 0.6,
               animation: `thryvPulse 1.2s ease-in-out ${i * 0.2}s infinite`,
             }}
           />
@@ -311,25 +281,28 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
+  // Thread state (desktop sidebar)
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState('');
+
+  // Indexed documents (desktop sidebar)
   const [ingestedFiles, setIngestedFiles] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // On mount: load threads and document list
   useEffect(() => {
-    const saved = loadThreads();
-    setThreads(saved);
+    setThreads(loadThreads());
     setActiveThreadId(crypto.randomUUID());
     fetchIngestedFiles();
   }, []);
 
+  // Persist active thread whenever messages change
   useEffect(() => {
     if (messages.length === 0 || !activeThreadId) return;
-    const title =
-      messages.find((m) => m.role === 'user')?.text.slice(0, 50) ?? 'Untitled';
+    const title = messages.find((m) => m.role === 'user')?.text.slice(0, 50) ?? 'Untitled';
     const updated: Thread = { id: activeThreadId, title, messages, updatedAt: Date.now() };
     setThreads((prev) => {
       const without = prev.filter((t) => t.id !== activeThreadId);
@@ -339,10 +312,12 @@ export default function ChatPage() {
     });
   }, [messages, activeThreadId]);
 
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -455,7 +430,6 @@ export default function ChatPage() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setUploadStatus(`Uploading ${i + 1} of ${files.length}: "${file.name}"…`);
-
       try {
         const formData = new FormData();
         formData.append('file', file);
@@ -472,9 +446,7 @@ export default function ChatPage() {
     }
 
     if (results.length > 0) {
-      setUploadStatus(
-        `Ingested ${results.length} file(s): ${results.join(', ')}. You can now ask questions about them.`,
-      );
+      setUploadStatus(`Ingested ${results.length} file(s): ${results.join(', ')}.`);
       await fetchIngestedFiles();
     } else {
       setUploadStatus(null);
@@ -485,20 +457,18 @@ export default function ChatPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  const isEmpty = messages.length === 0;
-
   return (
     <div style={{ display: 'flex', height: '100dvh' }}>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Sidebar                                                              */}
+      {/* Sidebar — desktop only                                               */}
       {/* ------------------------------------------------------------------ */}
       <aside
+        className="desktop-only"
         style={{
           width: '230px',
           background: 'rgba(15, 24, 56, 0.85)',
           borderRight: '1px solid var(--border)',
-          display: 'flex',
           flexDirection: 'column',
           flexShrink: 0,
           overflow: 'hidden',
@@ -514,10 +484,10 @@ export default function ChatPage() {
             gap: '10px',
           }}
         >
-          <ThryvLogo size="sm" />
+          <ThryvLogo />
           <span
             style={{
-              fontSize: '0.65rem',
+              fontSize: '0.62rem',
               fontWeight: 600,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
@@ -568,14 +538,8 @@ export default function ChatPage() {
                 style={{
                   display: 'block',
                   width: '100%',
-                  background:
-                    thread.id === activeThreadId
-                      ? 'rgba(255,85,0,0.1)'
-                      : 'transparent',
-                  border:
-                    thread.id === activeThreadId
-                      ? '1px solid rgba(255,85,0,0.3)'
-                      : '1px solid transparent',
+                  background: thread.id === activeThreadId ? 'rgba(255,85,0,0.1)' : 'transparent',
+                  border: thread.id === activeThreadId ? '1px solid rgba(255,85,0,0.3)' : '1px solid transparent',
                   borderRadius: '8px',
                   color: thread.id === activeThreadId ? '#fff' : 'var(--text-muted)',
                   padding: '7px 10px',
@@ -586,6 +550,7 @@ export default function ChatPage() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   marginBottom: '3px',
+                  fontFamily: 'inherit',
                   transition: 'all 0.15s',
                 }}
               >
@@ -641,11 +606,10 @@ export default function ChatPage() {
       {/* ------------------------------------------------------------------ */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
 
-        {/* Header / nav bar */}
+        {/* Header */}
         <header
+          className="chat-header"
           style={{
-            padding: '0 28px',
-            height: '62px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -655,22 +619,14 @@ export default function ChatPage() {
             backdropFilter: 'blur(8px)',
           }}
         >
-          <div>
-            <ThryvLogo />
-          </div>
+          <ThryvLogo />
 
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.78rem',
-              color: 'var(--text-muted)',
-              letterSpacing: '0.04em',
-            }}
-          >
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
             Document Intelligence
-          </p>
+          </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Upload button — desktop only */}
+          <div className="desktop-only" style={{ alignItems: 'center' }}>
             <input
               ref={fileInputRef}
               type="file"
@@ -692,16 +648,16 @@ export default function ChatPage() {
 
         {/* Messages */}
         <main
+          className="chat-main"
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '32px 40px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '28px',
+            minHeight: 0,
           }}
         >
-          {isEmpty && !loading && (
+          {messages.length === 0 && !loading && (
             <div
               style={{
                 flex: 1,
@@ -709,58 +665,33 @@ export default function ChatPage() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '20px',
+                gap: '18px',
                 textAlign: 'center',
-                padding: '60px 24px',
+                padding: '40px 8px',
               }}
             >
-              <ThryvLogo size="md" />
+              <ThryvLogo />
               <h2
-                style={{
-                  margin: 0,
-                  fontSize: '1.6rem',
-                  fontWeight: 800,
-                  color: '#fff',
-                  letterSpacing: '-0.02em',
-                }}
+                className="empty-headline"
+                style={{ margin: 0, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}
               >
                 Ask anything about your documents.
               </h2>
               <p
                 style={{
                   margin: 0,
-                  maxWidth: '420px',
+                  maxWidth: '400px',
                   lineHeight: '1.7',
                   color: 'var(--text-muted)',
-                  fontSize: '0.92rem',
+                  fontSize: '0.9rem',
                 }}
               >
-                Upload PDFs, spreadsheets, or text files — then ask questions
-                and get cited answers instantly.
+                Upload your files, then ask questions and get cited answers instantly.
               </p>
 
-              {/* Divider */}
-              <div
-                style={{
-                  width: '48px',
-                  height: '3px',
-                  borderRadius: '99px',
-                  background: 'var(--accent)',
-                  margin: '4px 0',
-                }}
-              />
+              <div style={{ width: '44px', height: '3px', borderRadius: '99px', background: 'var(--accent)' }} />
 
-              {/* Prompt chips */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  width: '100%',
-                  maxWidth: '500px',
-                  marginTop: '4px',
-                }}
-              >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '480px' }}>
                 {[
                   'What were the Q3 marketing spend figures?',
                   'Summarise the key campaign outcomes from the annual report.',
@@ -778,6 +709,7 @@ export default function ChatPage() {
                       fontSize: '0.86rem',
                       cursor: 'pointer',
                       textAlign: 'left',
+                      fontFamily: 'inherit',
                       transition: 'border-color 0.15s, background 0.15s',
                     }}
                     onMouseEnter={(e) => {
@@ -809,7 +741,7 @@ export default function ChatPage() {
         {uploadStatus && (
           <div
             style={{
-              padding: '10px 28px',
+              padding: '10px 20px',
               background: 'rgba(76, 175, 136, 0.1)',
               borderTop: '1px solid rgba(76,175,136,0.25)',
               color: 'var(--success)',
@@ -817,12 +749,13 @@ export default function ChatPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexShrink: 0,
             }}
           >
             <span>{uploadStatus}</span>
             <button
               onClick={() => setUploadStatus(null)}
-              style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
+              style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', fontFamily: 'inherit' }}
             >
               ×
             </button>
@@ -833,7 +766,7 @@ export default function ChatPage() {
         {error && (
           <div
             style={{
-              padding: '10px 28px',
+              padding: '10px 20px',
               background: 'rgba(224, 92, 92, 0.1)',
               borderTop: '1px solid rgba(224,92,92,0.25)',
               color: 'var(--error)',
@@ -841,12 +774,13 @@ export default function ChatPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexShrink: 0,
             }}
           >
             <span>{error}</span>
             <button
               onClick={() => setError(null)}
-              style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
+              style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', fontFamily: 'inherit' }}
             >
               ×
             </button>
@@ -856,12 +790,11 @@ export default function ChatPage() {
         {/* Input bar */}
         <form
           onSubmit={handleSubmit}
+          className="chat-form"
           style={{
-            padding: '16px 28px 20px',
             background: 'rgba(15, 24, 56, 0.7)',
             borderTop: '1px solid var(--border)',
             display: 'flex',
-            gap: '12px',
             alignItems: 'flex-end',
             flexShrink: 0,
             backdropFilter: 'blur(8px)',
@@ -884,12 +817,13 @@ export default function ChatPage() {
               border: '1px solid var(--border)',
               borderRadius: '12px',
               color: 'var(--text)',
-              padding: '13px 18px',
+              padding: '13px 16px',
               fontSize: '0.92rem',
               lineHeight: '1.5',
               outline: 'none',
               transition: 'border-color 0.15s',
               overflowY: 'auto',
+              fontFamily: 'inherit',
             }}
             onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
             onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
@@ -898,9 +832,9 @@ export default function ChatPage() {
             type="submit"
             disabled={loading || !input.trim()}
             className="btn-primary"
-            style={{ padding: '13px 24px', flexShrink: 0 }}
+            style={{ padding: '13px 22px', flexShrink: 0 }}
           >
-            {loading ? 'Thinking…' : 'Send'}
+            {loading ? '…' : 'Send'}
           </button>
         </form>
       </div>
