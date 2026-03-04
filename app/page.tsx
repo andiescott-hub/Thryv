@@ -247,9 +247,12 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll on new message
   useEffect(() => {
@@ -346,6 +349,39 @@ export default function ChatPage() {
     }
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadStatus(null);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setError(data.error ?? 'Upload failed.');
+      } else {
+        setUploadStatus(`"${data.filename}" ingested (${data.chunks} chunks). You can now ask questions about it.`);
+      }
+    } catch {
+      setError('Network error during upload.');
+    } finally {
+      setUploading(false);
+      // Reset file input so the same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   const isEmpty = messages.length === 0;
 
   return (
@@ -387,7 +423,7 @@ export default function ChatPage() {
         >
           T
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1
             style={{
               margin: 0,
@@ -408,6 +444,39 @@ export default function ChatPage() {
             Ask questions about your indexed documents
           </p>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.xlsx,.xls,.csv,.txt,.md"
+          onChange={handleFileUpload}
+          style={{ display: 'none' }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            background: uploading ? 'var(--surface-2)' : 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: uploading ? 'var(--text-muted)' : 'var(--text)',
+            padding: '8px 14px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+            transition: 'border-color 0.15s',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            if (!uploading) (e.target as HTMLButtonElement).style.borderColor = 'var(--accent)';
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.borderColor = 'var(--border)';
+          }}
+          aria-label="Upload document"
+        >
+          {uploading ? 'Uploading...' : 'Upload & Ingest'}
+        </button>
       </header>
 
       {/* ------------------------------------------------------------------ */}
@@ -505,6 +574,40 @@ export default function ChatPage() {
 
         <div ref={messagesEndRef} />
       </main>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Upload success banner                                                */}
+      {/* ------------------------------------------------------------------ */}
+      {uploadStatus && (
+        <div
+          style={{
+            padding: '10px 24px',
+            background: '#142a14',
+            borderTop: '1px solid #204a20',
+            color: '#6fcf6f',
+            fontSize: '0.85rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>{uploadStatus}</span>
+          <button
+            onClick={() => setUploadStatus(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#6fcf6f',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              padding: '0 4px',
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Error banner                                                         */}
