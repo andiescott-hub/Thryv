@@ -86,6 +86,8 @@ body {
 .chat-form {
   padding: 16px 28px 20px;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .bubble-max  { max-width: 78%; }
@@ -110,6 +112,8 @@ body {
   .chat-form {
     padding: 10px 12px max(14px, env(safe-area-inset-bottom, 14px));
     gap: 8px;
+    width: 100%;
+    min-width: 0;
   }
 
   .bubble-max { max-width: 92%; }

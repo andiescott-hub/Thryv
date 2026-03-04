@@ -719,7 +719,7 @@ export default function ChatPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Main area                                                            */}
       {/* ------------------------------------------------------------------ */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minWidth: 0 }}>
 
         {/* Header */}
         <header
@@ -935,6 +935,7 @@ export default function ChatPage() {
               transition: 'border-color 0.15s',
               overflowY: 'auto',
               fontFamily: 'inherit',
+              minWidth: 0,
             }}
             onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
             onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
