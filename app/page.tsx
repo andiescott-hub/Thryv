@@ -565,11 +565,13 @@ export default function ChatPage() {
         {/* Brand mark */}
         <div
           style={{
-            padding: '20px 20px 16px',
+            height: '62px',
+            padding: '0 20px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
+            flexShrink: 0,
           }}
         >
           <ThryvLogo />
@@ -734,8 +736,6 @@ export default function ChatPage() {
             backdropFilter: 'blur(8px)',
           }}
         >
-          <ThryvLogo />
-
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
             Document Intelligence
           </span>
