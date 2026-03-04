@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // ---------------------------------------------------------------------------
 // Suggested prompts
@@ -182,6 +184,10 @@ function CitationCard({ citation }: { citation: Citation }) {
 
 function ChatMessage({ message }: { message: Message }) {
   const isUser = message.role === 'user';
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  // Strip [n] citation markers from rendered text
+  const cleanText = message.text.replace(/\[\d+\]/g, '');
 
   return (
     <div
@@ -219,28 +225,64 @@ function ChatMessage({ message }: { message: Message }) {
           lineHeight: '1.7',
           fontSize: '0.92rem',
           color: message.isError ? 'var(--error)' : 'var(--text)',
-          whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
       >
-        {message.text}
+        {isUser ? (
+          cleanText
+        ) : (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ children }) => <h1 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 8px', color: 'var(--text)' }}>{children}</h1>,
+              h2: ({ children }) => <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '14px 0 6px', color: 'var(--text)' }}>{children}</h2>,
+              h3: ({ children }) => <h3 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '12px 0 4px', color: 'var(--text)' }}>{children}</h3>,
+              p: ({ children }) => <p style={{ margin: '0 0 10px' }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ margin: '4px 0 10px', paddingLeft: '20px' }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ margin: '4px 0 10px', paddingLeft: '20px' }}>{children}</ol>,
+              li: ({ children }) => <li style={{ marginBottom: '3px' }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ color: '#fff', fontWeight: 700 }}>{children}</strong>,
+              code: ({ children }) => <code style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', padding: '1px 5px', fontSize: '0.85em', fontFamily: 'monospace' }}>{children}</code>,
+              hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' }} />,
+            }}
+          >
+            {cleanText}
+          </ReactMarkdown>
+        )}
       </div>
 
       {message.citations && message.citations.length > 0 && (
         <div className="cite-max" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span
+          <button
+            onClick={() => setSourcesOpen((v) => !v)}
             style={{
-              fontSize: '0.62rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-              paddingInline: '4px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '2px 4px',
+              fontFamily: 'inherit',
             }}
           >
-            Sources
-          </span>
-          {message.citations.map((c) => (
+            <span
+              style={{
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+              }}
+            >
+              Sources ({message.citations.length})
+            </span>
+            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+              {sourcesOpen ? '▲' : '▼'}
+            </span>
+          </button>
+
+          {sourcesOpen && message.citations.map((c) => (
             <CitationCard key={`${c.id}-${c.filename}-${c.page}`} citation={c} />
           ))}
         </div>

@@ -44,9 +44,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Markdown paragraph spacing */
-.answer-text p { margin-bottom: 0.75rem; }
+/* Markdown prose resets */
 .answer-text p:last-child { margin-bottom: 0; }
+.answer-text ul:last-child,
+.answer-text ol:last-child { margin-bottom: 0; }
 
 /* Orange pill button */
 .btn-primary {
