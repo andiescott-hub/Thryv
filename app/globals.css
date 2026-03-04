@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --surface-2: #22263a;
-  --border: #2e3347;
-  --text: #e8eaf0;
-  --text-muted: #8b92b0;
-  --accent: #4f8ef7;
-  --accent-dim: #2a4a8a;
-  --user-bubble: #1e3a5f;
-  --assistant-bubble: #1a1d27;
+  --bg: #111b38;
+  --surface: #172040;
+  --surface-2: #1e2f58;
+  --border: #2a3f72;
+  --text: #ffffff;
+  --text-muted: #7b8fc4;
+  --accent: #ff5500;
+  --accent-hover: #e64d00;
+  --accent-dim: rgba(255, 85, 0, 0.12);
+  --user-bubble: #1a2f5a;
+  --assistant-bubble: #172040;
   --error: #e05c5c;
   --success: #4caf88;
 }
@@ -26,10 +27,16 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: var(--bg);
   color: var(--text);
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+
+  /* Deep navy base + right-side radial glow + subtle dot grid */
+  background-color: #111b38;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 75% 50%, #1d3468 0%, transparent 65%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.025) 1px, transparent 0);
+  background-size: 100% 100%, 28px 28px;
 }
 
 /* Scrollbar */
@@ -53,4 +60,26 @@ body {
 }
 .answer-text p:last-child {
   margin-bottom: 0;
+}
+
+/* Orange pill button utility (used for primary CTAs) */
+.btn-primary {
+  background: var(--accent);
+  border: none;
+  border-radius: 50px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-primary:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
