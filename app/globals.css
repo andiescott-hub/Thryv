@@ -22,7 +22,12 @@
   box-sizing: border-box;
 }
 
-html,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -121,6 +126,9 @@ body {
   .cite-max   { max-width: 92%; }
 
   .empty-headline { font-size: 1.2rem; }
+
+  /* Prevent iOS Safari auto-zoom on input focus (triggers when font-size < 16px) */
+  .chat-form textarea { font-size: 1rem !important; }
 
   /* Hide sidebar and upload button on mobile */
   .desktop-only { display: none !important; }
