@@ -16,7 +16,7 @@ const nextConfig = {
   },
   // Increase body size limit for large document uploads (future use)
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', 'xlsx', 'chromadb'],
+    serverComponentsExternalPackages: ['pdf-parse', 'xlsx', 'mammoth', 'adm-zip'],
   },
 };
 

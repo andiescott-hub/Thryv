@@ -75,9 +75,10 @@ export async function POST(request: NextRequest) {
       chunks: chunks.length,
     });
   } catch (err) {
-    console.error('[/api/upload] Error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[/api/upload] Error:', message, err);
     return NextResponse.json(
-      { error: 'Failed to process file. Please try again.' },
+      { error: `Failed to process file: ${message}` },
       { status: 500 },
     );
   } finally {
