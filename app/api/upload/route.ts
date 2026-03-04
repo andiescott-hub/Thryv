@@ -17,7 +17,7 @@ import { chunkFile } from '@/lib/chunking';
 import { getEmbeddingsBatch } from '@/lib/embeddings';
 import { addChunks, deleteByFilename } from '@/lib/vector';
 
-const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md']);
+const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md', '.docx', '.pptx']);
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5 MB
 
 export async function POST(request: NextRequest) {

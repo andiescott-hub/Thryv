@@ -350,36 +350,53 @@ export default function ChatPage() {
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setUploading(true);
     setUploadStatus(null);
     setError(null);
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    const results: string[] = [];
+    const errors: string[] = [];
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadStatus(`Uploading ${i + 1} of ${files.length}: "${file.name}"…`);
 
-      const data = await res.json();
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
 
-      if (!res.ok || data.error) {
-        setError(data.error ?? 'Upload failed.');
-      } else {
-        setUploadStatus(`"${data.filename}" ingested (${data.chunks} chunks). You can now ask questions about it.`);
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          errors.push(`${file.name}: ${data.error ?? 'Upload failed.'}`);
+        } else {
+          results.push(`"${data.filename}" (${data.chunks} chunks)`);
+        }
+      } catch {
+        errors.push(`${file.name}: Network error.`);
       }
-    } catch {
-      setError('Network error during upload.');
-    } finally {
-      setUploading(false);
-      // Reset file input so the same file can be re-uploaded
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+
+    if (results.length > 0) {
+      setUploadStatus(`Ingested ${results.length} file(s): ${results.join(', ')}. You can now ask questions about them.`);
+    } else {
+      setUploadStatus(null);
+    }
+    if (errors.length > 0) {
+      setError(errors.join(' | '));
+    }
+
+    setUploading(false);
+    // Reset file input so the same files can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   const isEmpty = messages.length === 0;
@@ -447,7 +464,8 @@ export default function ChatPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.xlsx,.xls,.csv,.txt,.md"
+          accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
+          multiple
           onChange={handleFileUpload}
           style={{ display: 'none' }}
         />

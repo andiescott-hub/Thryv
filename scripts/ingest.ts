@@ -41,7 +41,7 @@ const { addChunks, countChunks, deleteByFilename, clearIndex } = await import('.
 
 import type { Chunk } from '../lib/chunking.js';
 
-const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md']);
+const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md', '.docx', '.pptx']);
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing

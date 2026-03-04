@@ -172,6 +172,64 @@ function chunkSpreadsheet(filePath: string): Chunk[] {
 }
 
 // ---------------------------------------------------------------------------
+// DOCX parser (uses mammoth)
+// ---------------------------------------------------------------------------
+
+async function chunkDocx(filePath: string): Promise<Chunk[]> {
+  const mammoth = (await import('mammoth')).default;
+  const filename = path.basename(filePath);
+
+  const result = await mammoth.extractRawText({ path: filePath });
+  const text = result.value.replace(/\s+/g, ' ').trim();
+  if (text.length < 40) return [];
+
+  return splitText(text, filename, 1, 0);
+}
+
+// ---------------------------------------------------------------------------
+// PPTX parser (uses adm-zip to extract text from slide XML)
+// ---------------------------------------------------------------------------
+
+async function chunkPptx(filePath: string): Promise<Chunk[]> {
+  const AdmZip = (await import('adm-zip')).default;
+  const filename = path.basename(filePath);
+  const allChunks: Chunk[] = [];
+  let globalChunkIndex = 0;
+
+  const zip = new AdmZip(filePath);
+  const entries = zip.getEntries();
+
+  // Collect slide entries sorted by slide number
+  const slideEntries = entries
+    .filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
+    .sort((a, b) => {
+      const numA = parseInt(a.entryName.match(/slide(\d+)/)?.[1] ?? '0');
+      const numB = parseInt(b.entryName.match(/slide(\d+)/)?.[1] ?? '0');
+      return numA - numB;
+    });
+
+  slideEntries.forEach((entry, idx) => {
+    const xml = entry.getData().toString('utf-8');
+    // Extract text from <a:t> tags (PowerPoint text elements)
+    const textParts: string[] = [];
+    const regex = /<a:t>([\s\S]*?)<\/a:t>/g;
+    let match;
+    while ((match = regex.exec(xml)) !== null) {
+      textParts.push(match[1]);
+    }
+
+    const slideText = textParts.join(' ').replace(/\s+/g, ' ').trim();
+    if (slideText.length < 40) return;
+
+    const slideChunks = splitText(slideText, filename, idx + 1, globalChunkIndex);
+    globalChunkIndex += slideChunks.length;
+    allChunks.push(...slideChunks);
+  });
+
+  return allChunks;
+}
+
+// ---------------------------------------------------------------------------
 // Plain-text parser
 // ---------------------------------------------------------------------------
 
@@ -194,6 +252,14 @@ export async function chunkFile(filePath: string): Promise<Chunk[]> {
 
   if (['.xlsx', '.xls', '.csv'].includes(ext)) {
     return chunkSpreadsheet(filePath);
+  }
+
+  if (ext === '.docx') {
+    return chunkDocx(filePath);
+  }
+
+  if (ext === '.pptx') {
+    return chunkPptx(filePath);
   }
 
   return chunkPlainText(filePath);
