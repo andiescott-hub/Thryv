@@ -23,6 +23,37 @@ interface Message {
   isError?: boolean;
 }
 
+interface Thread {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Thread persistence helpers (localStorage)
+// ---------------------------------------------------------------------------
+
+const THREADS_KEY = 'thryv_threads';
+const MAX_THREADS = 3;
+
+function loadThreads(): Thread[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(THREADS_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function persistThreads(threads: Thread[]) {
+  if (typeof window === 'undefined') return;
+  const sorted = [...threads]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, MAX_THREADS);
+  localStorage.setItem(THREADS_KEY, JSON.stringify(sorted));
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -250,9 +281,38 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
+  // Thread state
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState('');
+
+  // Ingested documents
+  const [ingestedFiles, setIngestedFiles] = useState<string[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // On mount: load threads from localStorage and assign a new active thread ID
+  useEffect(() => {
+    const saved = loadThreads();
+    setThreads(saved);
+    setActiveThreadId(crypto.randomUUID());
+    fetchIngestedFiles();
+  }, []);
+
+  // Persist active thread whenever messages change
+  useEffect(() => {
+    if (messages.length === 0 || !activeThreadId) return;
+    const title =
+      messages.find((m) => m.role === 'user')?.text.slice(0, 50) ?? 'Untitled';
+    const updated: Thread = { id: activeThreadId, title, messages, updatedAt: Date.now() };
+    setThreads((prev) => {
+      const without = prev.filter((t) => t.id !== activeThreadId);
+      const next = [updated, ...without];
+      persistThreads(next);
+      return next.slice(0, MAX_THREADS);
+    });
+  }, [messages, activeThreadId]);
 
   // Auto-scroll on new message
   useEffect(() => {
@@ -266,6 +326,33 @@ export default function ChatPage() {
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [input]);
+
+  async function fetchIngestedFiles() {
+    try {
+      const res = await fetch('/api/documents');
+      if (res.ok) {
+        const data = await res.json();
+        setIngestedFiles(data.filenames ?? []);
+      }
+    } catch {
+      // silently ignore – sidebar will just show empty
+    }
+  }
+
+  function handleNewThread() {
+    setMessages([]);
+    setActiveThreadId(crypto.randomUUID());
+    setInput('');
+    setError(null);
+    setUploadStatus(null);
+  }
+
+  function handleSwitchThread(thread: Thread) {
+    setMessages(thread.messages);
+    setActiveThreadId(thread.id);
+    setError(null);
+    setUploadStatus(null);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -387,6 +474,8 @@ export default function ChatPage() {
 
     if (results.length > 0) {
       setUploadStatus(`Ingested ${results.length} file(s): ${results.join(', ')}. You can now ask questions about them.`);
+      // Refresh the document list
+      await fetchIngestedFiles();
     } else {
       setUploadStatus(null);
     }
@@ -405,327 +494,488 @@ export default function ChatPage() {
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
         height: '100dvh',
         background: 'var(--bg)',
       }}
     >
       {/* ------------------------------------------------------------------ */}
-      {/* Header                                                               */}
+      {/* Sidebar                                                              */}
       {/* ------------------------------------------------------------------ */}
-      <header
+      <aside
         style={{
-          borderBottom: '1px solid var(--border)',
-          padding: '14px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
+          width: '220px',
+          borderRight: '1px solid var(--border)',
           background: 'var(--surface)',
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'var(--accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1rem',
-            fontWeight: 700,
-            color: '#fff',
-          }}
-        >
-          T
-        </div>
-        <div style={{ flex: 1 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: 'var(--text)',
-            }}
-          >
-            Thryv Document Intelligence
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-            }}
-          >
-            Ask questions about your indexed documents
-          </p>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
-          multiple
-          onChange={handleFileUpload}
-          style={{ display: 'none' }}
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          style={{
-            background: uploading ? 'var(--surface-2)' : 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            color: uploading ? 'var(--text-muted)' : 'var(--text)',
-            padding: '8px 14px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-            transition: 'border-color 0.15s',
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => {
-            if (!uploading) (e.target as HTMLButtonElement).style.borderColor = 'var(--accent)';
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.borderColor = 'var(--border)';
-          }}
-          aria-label="Upload document"
-        >
-          {uploading ? 'Uploading...' : 'Upload & Ingest'}
-        </button>
-      </header>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Message list                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <main
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '24px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '24px',
+          flexShrink: 0,
+          overflow: 'hidden',
         }}
       >
-        {isEmpty && !loading && (
-          <div
+        {/* New Thread button */}
+        <div
+          style={{
+            padding: '16px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <button
+            onClick={handleNewThread}
             style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '16px',
-              color: 'var(--text-muted)',
-              textAlign: 'center',
-              padding: '40px 24px',
+              width: '100%',
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: '8px',
+              color: '#fff',
+              padding: '9px 12px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
             }}
           >
-            <div style={{ fontSize: '2.5rem' }}>📄</div>
-            <h2
+            + New Thread
+          </button>
+        </div>
+
+        {/* Thread history */}
+        <div
+          style={{
+            padding: '12px 12px 8px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Recent Threads
+          </p>
+          {threads.length === 0 ? (
+            <p
               style={{
                 margin: 0,
-                fontSize: '1.2rem',
-                fontWeight: 600,
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                fontStyle: 'italic',
+              }}
+            >
+              No threads yet.
+            </p>
+          ) : (
+            threads.map((thread) => (
+              <button
+                key={thread.id}
+                onClick={() => handleSwitchThread(thread)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  background:
+                    thread.id === activeThreadId
+                      ? 'var(--surface-2)'
+                      : 'transparent',
+                  border:
+                    thread.id === activeThreadId
+                      ? '1px solid var(--border)'
+                      : '1px solid transparent',
+                  borderRadius: '6px',
+                  color: 'var(--text)',
+                  padding: '7px 10px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginBottom: '3px',
+                }}
+                title={thread.title}
+              >
+                {thread.title}
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Indexed documents */}
+        <div
+          style={{
+            padding: '12px 12px',
+            flex: 1,
+            overflow: 'auto',
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Indexed Documents
+          </p>
+          {ingestedFiles.length === 0 ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                fontStyle: 'italic',
+              }}
+            >
+              No documents indexed.
+            </p>
+          ) : (
+            ingestedFiles.map((f) => (
+              <div
+                key={f}
+                title={f}
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text)',
+                  padding: '4px 0',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <span style={{ flexShrink: 0, color: 'var(--text-muted)' }}>📄</span>
+                <span>{f}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Main content                                                         */}
+      {/* ------------------------------------------------------------------ */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <header
+          style={{
+            borderBottom: '1px solid var(--border)',
+            padding: '14px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--surface)',
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1rem',
+              fontWeight: 700,
+              color: '#fff',
+            }}
+          >
+            T
+          </div>
+          <div style={{ flex: 1 }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 700,
                 color: 'var(--text)',
               }}
             >
-              Ask anything about your documents
-            </h2>
-            <p style={{ margin: 0, maxWidth: '400px', lineHeight: '1.6' }}>
-              Type a question below. The system will search your indexed PDFs
-              and spreadsheets and return cited answers.
-            </p>
-            <div
+              Thryv Document Intelligence
+            </h1>
+            <p
               style={{
-                marginTop: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                width: '100%',
-                maxWidth: '480px',
+                margin: 0,
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
               }}
             >
-              {[
-                'What were the Q3 marketing spend figures?',
-                'Summarise the key campaign outcomes from the annual report.',
-                'Which products had the highest conversion rate?',
-              ].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setInput(q)}
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '10px',
-                    color: 'var(--text)',
-                    padding: '10px 16px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.target as HTMLButtonElement).style.borderColor =
-                      'var(--accent)')
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.target as HTMLButtonElement).style.borderColor =
-                      'var(--border)')
-                  }
-                >
-                  {q}
-                </button>
-              ))}
+              Ask questions about your indexed documents
+            </p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.docx,.pptx"
+            multiple
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              background: uploading ? 'var(--surface-2)' : 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              color: uploading ? 'var(--text-muted)' : 'var(--text)',
+              padding: '8px 14px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'border-color 0.15s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              if (!uploading) (e.target as HTMLButtonElement).style.borderColor = 'var(--accent)';
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLButtonElement).style.borderColor = 'var(--border)';
+            }}
+            aria-label="Upload document"
+          >
+            {uploading ? 'Uploading...' : 'Upload & Ingest'}
+          </button>
+        </header>
+
+        {/* Message list */}
+        <main
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px',
+          }}
+        >
+          {isEmpty && !loading && (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '16px',
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                padding: '40px 24px',
+              }}
+            >
+              <div style={{ fontSize: '2.5rem' }}>📄</div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: '1.2rem',
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                }}
+              >
+                Ask anything about your documents
+              </h2>
+              <p style={{ margin: 0, maxWidth: '400px', lineHeight: '1.6' }}>
+                Type a question below. The system will search your indexed PDFs
+                and spreadsheets and return cited answers.
+              </p>
+              <div
+                style={{
+                  marginTop: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  width: '100%',
+                  maxWidth: '480px',
+                }}
+              >
+                {[
+                  'What were the Q3 marketing spend figures?',
+                  'Summarise the key campaign outcomes from the annual report.',
+                  'Which products had the highest conversion rate?',
+                ].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setInput(q)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      color: 'var(--text)',
+                      padding: '10px 16px',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) =>
+                      ((e.target as HTMLButtonElement).style.borderColor =
+                        'var(--accent)')
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.target as HTMLButtonElement).style.borderColor =
+                        'var(--border)')
+                    }
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+
+          {loading && <TypingIndicator />}
+
+          <div ref={messagesEndRef} />
+        </main>
+
+        {/* Upload success banner */}
+        {uploadStatus && (
+          <div
+            style={{
+              padding: '10px 24px',
+              background: '#142a14',
+              borderTop: '1px solid #204a20',
+              color: '#6fcf6f',
+              fontSize: '0.85rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span>{uploadStatus}</span>
+            <button
+              onClick={() => setUploadStatus(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6fcf6f',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                padding: '0 4px',
+              }}
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
           </div>
         )}
 
-        {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
-        ))}
-
-        {loading && <TypingIndicator />}
-
-        <div ref={messagesEndRef} />
-      </main>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Upload success banner                                                */}
-      {/* ------------------------------------------------------------------ */}
-      {uploadStatus && (
-        <div
-          style={{
-            padding: '10px 24px',
-            background: '#142a14',
-            borderTop: '1px solid #204a20',
-            color: '#6fcf6f',
-            fontSize: '0.85rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span>{uploadStatus}</span>
-          <button
-            onClick={() => setUploadStatus(null)}
+        {/* Error banner */}
+        {error && (
+          <div
             style={{
-              background: 'none',
-              border: 'none',
-              color: '#6fcf6f',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              padding: '0 4px',
-            }}
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Error banner                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      {error && (
-        <div
-          style={{
-            padding: '10px 24px',
-            background: '#2a1414',
-            borderTop: '1px solid #4a2020',
-            color: 'var(--error)',
-            fontSize: '0.85rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            style={{
-              background: 'none',
-              border: 'none',
+              padding: '10px 24px',
+              background: '#2a1414',
+              borderTop: '1px solid #4a2020',
               color: 'var(--error)',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              padding: '0 4px',
+              fontSize: '0.85rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
             }}
-            aria-label="Dismiss error"
           >
-            ×
-          </button>
-        </div>
-      )}
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--error)',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                padding: '0 4px',
+              }}
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Input area                                                           */}
-      {/* ------------------------------------------------------------------ */}
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          borderTop: '1px solid var(--border)',
-          padding: '16px 24px',
-          background: 'var(--surface)',
-          display: 'flex',
-          gap: '12px',
-          alignItems: 'flex-end',
-          flexShrink: 0,
-        }}
-      >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
-          rows={1}
-          disabled={loading}
+        {/* Input area */}
+        <form
+          onSubmit={handleSubmit}
           style={{
-            flex: 1,
-            resize: 'none',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            color: 'var(--text)',
-            padding: '12px 16px',
-            fontSize: '0.925rem',
-            lineHeight: '1.5',
-            outline: 'none',
-            transition: 'border-color 0.15s',
-            overflowY: 'auto',
-          }}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
-          onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
-          maxLength={1000}
-          aria-label="Question input"
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          style={{
-            background: loading || !input.trim() ? 'var(--surface-2)' : 'var(--accent)',
-            border: '1px solid',
-            borderColor:
-              loading || !input.trim() ? 'var(--border)' : 'var(--accent)',
-            borderRadius: '12px',
-            color: loading || !input.trim() ? 'var(--text-muted)' : '#fff',
-            padding: '12px 20px',
-            fontSize: '0.9rem',
-            fontWeight: 600,
-            cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-            transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
+            borderTop: '1px solid var(--border)',
+            padding: '16px 24px',
+            background: 'var(--surface)',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-end',
             flexShrink: 0,
           }}
-          aria-label="Send question"
         >
-          {loading ? 'Thinking…' : 'Send'}
-        </button>
-      </form>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
+            rows={1}
+            disabled={loading}
+            style={{
+              flex: 1,
+              resize: 'none',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              color: 'var(--text)',
+              padding: '12px 16px',
+              fontSize: '0.925rem',
+              lineHeight: '1.5',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+              overflowY: 'auto',
+            }}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
+            onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+            maxLength={1000}
+            aria-label="Question input"
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            style={{
+              background: loading || !input.trim() ? 'var(--surface-2)' : 'var(--accent)',
+              border: '1px solid',
+              borderColor:
+                loading || !input.trim() ? 'var(--border)' : 'var(--accent)',
+              borderRadius: '12px',
+              color: loading || !input.trim() ? 'var(--text-muted)' : '#fff',
+              padding: '12px 20px',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+            aria-label="Send question"
+          >
+            {loading ? 'Thinking…' : 'Send'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

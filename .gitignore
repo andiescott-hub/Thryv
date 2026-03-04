@@ -18,8 +18,8 @@ build/
 .env.production.local
 
 # Private documents – keep out of version control
-documents/
-!documents/.gitkeep
+/documents/
+!/documents/.gitkeep
 
 # Logs
 npm-debug.log*

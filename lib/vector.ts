@@ -148,3 +148,27 @@ export async function clearIndex(): Promise<void> {
   const index = getIndex();
   await index.deleteAll();
 }
+
+/**
+ * Return a sorted list of unique filenames stored in the index.
+ * Chunk IDs follow the pattern `${filename}::p${page}::c${chunkIndex}`,
+ * so we page through all IDs and extract the part before `::`.
+ */
+export async function listFilenames(): Promise<string[]> {
+  const index = getIndex();
+  const filenames = new Set<string>();
+  let paginationToken: string | undefined;
+  let pages = 0;
+  const MAX_PAGES = 50; // cap at ~5 000 vectors to avoid runaway requests
+
+  do {
+    const result = await index.listPaginated({ paginationToken, limit: 100 });
+    for (const v of result.vectors ?? []) {
+      if (v.id) filenames.add(v.id.split('::')[0]);
+    }
+    paginationToken = result.pagination?.next;
+    pages++;
+  } while (paginationToken && pages < MAX_PAGES);
+
+  return Array.from(filenames).sort();
+}
