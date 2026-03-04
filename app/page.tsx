@@ -196,6 +196,8 @@ function ChatMessage({ message }: { message: Message }) {
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
         gap: '6px',
+        width: '100%',
+        minWidth: 0,
       }}
     >
       <span
