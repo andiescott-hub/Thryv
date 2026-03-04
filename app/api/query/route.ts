@@ -89,8 +89,9 @@ export async function POST(request: NextRequest) {
     queryEmbedding = await getEmbedding(question);
   } catch (err) {
     console.error('[/api/query] Embedding error:', err);
+    const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: 'Failed to generate embedding. Check EMBEDDING_PROVIDER config.' },
+      { error: `Embedding failed (provider=${process.env.EMBEDDING_PROVIDER ?? 'NOT SET'}): ${detail}` },
       { status: 500, headers: rateLimitHeaders },
     );
   }
