@@ -74,6 +74,7 @@ Output format – respond with a single JSON object (no markdown fences):
 export async function generateAnswer(
   question: string,
   chunks: RetrievedChunk[],
+  history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
 ): Promise<LLMAnswer> {
   const client = new OpenAI({
     apiKey: process.env.LLM_API_KEY ?? '',
@@ -90,6 +91,7 @@ export async function generateAnswer(
     temperature: 0.1, // Low temperature for factual retrieval tasks
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
+      ...history,
       { role: 'user', content: userMessage },
     ],
   });

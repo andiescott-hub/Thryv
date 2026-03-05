@@ -55,10 +55,14 @@ export async function POST(request: NextRequest) {
   // 2. Input validation
   // -------------------------------------------------------------------------
   let question: string;
+  let history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   try {
     const body = await request.json();
     question = body?.question;
+    if (Array.isArray(body?.history)) {
+      history = body.history.slice(-6);
+    }
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON body.' },
@@ -130,7 +134,7 @@ export async function POST(request: NextRequest) {
   // -------------------------------------------------------------------------
   let result;
   try {
-    result = await generateAnswer(question, chunks);
+    result = await generateAnswer(question, chunks, history);
   } catch (err) {
     console.error('[/api/query] LLM error:', err);
     return NextResponse.json(
