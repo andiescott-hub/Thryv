@@ -72,6 +72,57 @@ User preferences (always apply these):
 - Dates: if a date appears to be a spreadsheet serial number (a plain integer such as 45000), convert it to a human-readable date (e.g. "16 Jan 2023") before displaying it. Do not show the raw serial number.`;
 
 // ---------------------------------------------------------------------------
+// Query contextualization
+// ---------------------------------------------------------------------------
+
+/**
+ * Rewrites a follow-up question into a fully self-contained question using
+ * conversation history, so the vector search gets a meaningful query.
+ * Only called when there is prior history; returns the original question as-is
+ * if rewriting fails or history is empty.
+ */
+export async function rewriteQuestion(
+  question: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
+): Promise<string> {
+  if (history.length === 0) return question;
+
+  const client = new OpenAI({
+    apiKey: process.env.LLM_API_KEY ?? '',
+    baseURL: BASE_URL,
+  });
+
+  const historyText = history
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n');
+
+  try {
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      max_tokens: 100,
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You rewrite follow-up questions into standalone questions using the conversation history. ' +
+            'Output only the rewritten question with no explanation. ' +
+            'If the question is already standalone, output it unchanged.',
+        },
+        {
+          role: 'user',
+          content: `Conversation so far:\n${historyText}\n\nFollow-up question: ${question}\n\nRewritten standalone question:`,
+        },
+      ],
+    });
+    const rewritten = response.choices[0]?.message?.content?.trim();
+    return rewritten || question;
+  } catch {
+    return question;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // LLM call + response parsing
 // ---------------------------------------------------------------------------
 

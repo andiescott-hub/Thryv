@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rateLimit';
 import { getEmbedding } from '@/lib/embeddings';
 import { queryCollection } from '@/lib/vector';
-import { generateAnswer } from '@/lib/llm';
+import { generateAnswer, rewriteQuestion } from '@/lib/llm';
 
 const TOP_K = 15;
 const DISTANCE_THRESHOLD = 0.75; // cosine distance; lower = more similar (0–2 range)
@@ -86,11 +86,13 @@ export async function POST(request: NextRequest) {
   question = question.trim();
 
   // -------------------------------------------------------------------------
-  // 3. Embed the question
+  // 3. Contextualize follow-up questions, then embed
   // -------------------------------------------------------------------------
+  const searchQuery = await rewriteQuestion(question, history);
+
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(question);
+    queryEmbedding = await getEmbedding(searchQuery);
   } catch (err) {
     console.error('[/api/query] Embedding error:', err);
     const detail = err instanceof Error ? err.message : String(err);
