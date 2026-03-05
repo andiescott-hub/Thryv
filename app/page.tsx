@@ -452,11 +452,16 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    // Build conversation history (last 6 messages = up to 3 prior exchanges)
+    const history = messages
+      .slice(-6)
+      .map((m) => ({ role: m.role, content: m.text }));
+
     try {
       const res = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
       });
 
       if (res.status === 429) {

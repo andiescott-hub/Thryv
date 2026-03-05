@@ -65,7 +65,11 @@ Output format – respond with a single JSON object (no markdown fences):
 {
   "answer": "<your markdown-formatted answer with inline citation markers like [1]>",
   "usedRefs": [1, 2]
-}`;
+}
+
+User preferences (always apply these):
+- Currency: when pricing is mentioned, show Australian dollar (AUD) amounts only. Do not include New Zealand dollar (NZD) amounts unless the user explicitly asks for NZ pricing.
+- Dates: if a date appears to be a spreadsheet serial number (a plain integer such as 45000), convert it to a human-readable date (e.g. "16 Jan 2023") before displaying it. Do not show the raw serial number.`;
 
 // ---------------------------------------------------------------------------
 // LLM call + response parsing
@@ -74,6 +78,7 @@ Output format – respond with a single JSON object (no markdown fences):
 export async function generateAnswer(
   question: string,
   chunks: RetrievedChunk[],
+  history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
 ): Promise<LLMAnswer> {
   const client = new OpenAI({
     apiKey: process.env.LLM_API_KEY ?? '',
@@ -90,6 +95,7 @@ export async function generateAnswer(
     temperature: 0.1, // Low temperature for factual retrieval tasks
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
+      ...history,
       { role: 'user', content: userMessage },
     ],
   });
