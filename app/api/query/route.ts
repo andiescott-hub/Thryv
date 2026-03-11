@@ -22,8 +22,8 @@ import { getEmbedding } from '@/lib/embeddings';
 import { queryCollection } from '@/lib/vector';
 import { generateAnswer, rewriteQuestion } from '@/lib/llm';
 
-const TOP_K = 15;
-const DISTANCE_THRESHOLD = 0.75; // cosine distance; lower = more similar (0–2 range)
+const TOP_K = 40;
+const DISTANCE_THRESHOLD = 0.82; // cosine distance; lower = more similar (0–2 range)
 const MIN_CHUNKS = 3;            // always keep at least this many chunks
 const MAX_QUESTION_LENGTH = 1000;
 
