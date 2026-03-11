@@ -68,7 +68,7 @@ Output format – respond with a single JSON object (no markdown fences):
 }
 
 User preferences (always apply these):
-- Currency: when pricing is mentioned, show Australian dollar (AUD) amounts only. Do not include New Zealand dollar (NZD) amounts unless the user explicitly asks for NZ pricing.
+- Currency: this assistant serves Australian customers. When the context contains pricing for multiple regions (e.g. AU and NZ), always use the Australian (AU) figure. Never quote a New Zealand (NZ/NZD) price in place of an Australian one. If a context block shows both AU and NZ prices for the same item, cite only the AU price. Only show NZ pricing if the user explicitly asks for it.
 - Dates: if a date appears to be a spreadsheet serial number (a plain integer such as 45000), convert it to a human-readable date (e.g. "16 Jan 2023") before displaying it. Do not show the raw serial number.`;
 
 // ---------------------------------------------------------------------------

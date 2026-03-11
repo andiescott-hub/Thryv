@@ -26,6 +26,18 @@ const OVERLAP = 150;
 // Core splitter
 // ---------------------------------------------------------------------------
 
+/** Replace non-ASCII characters so Pinecone vector IDs stay ASCII-safe. */
+function toAsciiId(s: string): string {
+  return s.replace(/[^\x00-\x7F]/g, (c) => {
+    // Common typographic replacements
+    if (c === '\u2013' || c === '\u2014') return '-';   // en/em dash
+    if (c === '\u2018' || c === '\u2019') return "'";   // curly single quotes
+    if (c === '\u201C' || c === '\u201D') return '"';   // curly double quotes
+    if (c === '\u2026') return '...';                   // ellipsis
+    return '_';
+  });
+}
+
 function splitText(
   text: string,
   filename: string,
@@ -33,6 +45,7 @@ function splitText(
   startChunkIndex: number,
 ): Chunk[] {
   const chunks: Chunk[] = [];
+  const safeFilename = toAsciiId(filename);
   let i = 0;
   let chunkIndex = startChunkIndex;
 
@@ -43,7 +56,7 @@ function splitText(
     // Skip chunks that are effectively empty or too short to be useful
     if (slice.length >= 40) {
       chunks.push({
-        id: `${filename}::p${page}::c${chunkIndex}`,
+        id: `${safeFilename}::p${page}::c${chunkIndex}`,
         text: slice,
         filename,
         page,
@@ -67,6 +80,7 @@ async function chunkPDF(filePath: string): Promise<Chunk[]> {
   const pdfParse = (await import('pdf-parse')).default;
   const buffer = fs.readFileSync(filePath);
   const filename = path.basename(filePath);
+  const safeFilenameForId = toAsciiId(filename);
   const allChunks: Chunk[] = [];
   let globalChunkIndex = 0;
 
@@ -102,7 +116,7 @@ async function chunkPDF(filePath: string): Promise<Chunk[]> {
           Math.ceil((i + CHUNK_SIZE / 2) / estCharsPerPage),
         );
         allChunks.push({
-          id: `${filename}::p${page}::c${globalChunkIndex}`,
+          id: `${safeFilenameForId}::p${page}::c${globalChunkIndex}`,
           text: slice,
           filename,
           page,
