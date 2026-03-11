@@ -182,6 +182,44 @@ function CitationCard({ citation }: { citation: Citation }) {
 // ChatMessage
 // ---------------------------------------------------------------------------
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy to clipboard"
+      style={{
+        background: 'none',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        color: copied ? 'var(--success)' : 'var(--text-muted)',
+        cursor: 'pointer',
+        fontSize: '0.72rem',
+        padding: '3px 8px',
+        fontFamily: 'inherit',
+        transition: 'color 0.15s, border-color 0.15s',
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => {
+        if (!copied) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+      }}
+    >
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  );
+}
+
 function ChatMessage({ message }: { message: Message }) {
   const isUser = message.role === 'user';
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -252,6 +290,12 @@ function ChatMessage({ message }: { message: Message }) {
           </ReactMarkdown>
         )}
       </div>
+
+      {!isUser && !message.isError && (
+        <div style={{ paddingInline: '4px' }}>
+          <CopyButton text={cleanText} />
+        </div>
+      )}
 
       {message.citations && message.citations.length > 0 && (
         <div className="cite-max" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
