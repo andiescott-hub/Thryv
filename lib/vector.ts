@@ -150,6 +150,53 @@ export async function clearIndex(): Promise<void> {
 }
 
 /**
+ * Fetch all chunks belonging to a specific filename, ordered by page and chunk index.
+ * Used for document preview.
+ */
+export async function fetchChunksByFilename(
+  filename: string,
+): Promise<{ text: string; page: number; chunkIndex: number }[]> {
+  const index = getIndex();
+  const prefix = `${filename}::`;
+
+  const ids: string[] = [];
+  let paginationToken: string | undefined;
+
+  do {
+    const result = await index.listPaginated({ prefix, paginationToken });
+    for (const v of result.vectors ?? []) {
+      if (v.id) ids.push(v.id);
+    }
+    paginationToken = result.pagination?.next;
+  } while (paginationToken);
+
+  if (ids.length === 0) return [];
+
+  // Fetch vectors in batches of 100 (Pinecone limit)
+  const chunks: { text: string; page: number; chunkIndex: number }[] = [];
+  const BATCH_SIZE = 100;
+
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const result = await index.fetch({ ids: batch });
+    for (const record of Object.values(result.records ?? {})) {
+      if (record?.metadata) {
+        chunks.push({
+          text: (record.metadata.text as string) ?? '',
+          page: Number(record.metadata.page ?? 1),
+          chunkIndex: Number(record.metadata.chunkIndex ?? 0),
+        });
+      }
+    }
+  }
+
+  // Sort by page, then by chunk index
+  chunks.sort((a, b) => a.page - b.page || a.chunkIndex - b.chunkIndex);
+
+  return chunks;
+}
+
+/**
  * Return a sorted list of unique filenames stored in the index.
  * Chunk IDs follow the pattern `${filename}::p${page}::c${chunkIndex}`,
  * so we page through all IDs and extract the part before `::`.
