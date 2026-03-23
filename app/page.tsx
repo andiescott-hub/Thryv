@@ -401,6 +401,12 @@ export default function ChatPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Document preview state
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [previewPages, setPreviewPages] = useState<{ page: number; content: string }[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -482,6 +488,32 @@ export default function ChatPage() {
     setActiveThreadId(thread.id);
     setError(null);
     setUploadStatus(null);
+  }
+
+  async function handlePreviewDocument(filename: string) {
+    setPreviewFile(filename);
+    setPreviewPages([]);
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/documents/preview?filename=${encodeURIComponent(filename)}`);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setPreviewError(data.error ?? 'Failed to load preview.');
+      } else {
+        setPreviewPages(data.pages ?? []);
+      }
+    } catch {
+      setPreviewError('Network error – could not load preview.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closePreview() {
+    setPreviewFile(null);
+    setPreviewPages([]);
+    setPreviewError(null);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -733,7 +765,33 @@ export default function ChatPage() {
                 }}
               >
                 <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: '0.7rem' }}>▪</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{f}</span>
+                <button
+                  onClick={() => handlePreviewDocument(f)}
+                  title={`Preview ${f}`}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    fontSize: '0.75rem',
+                    padding: 0,
+                    textAlign: 'left',
+                    fontFamily: 'inherit',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                  }}
+                >
+                  {f}
+                </button>
                 <button
                   onClick={() => setDeleteConfirm(f)}
                   title="Remove document"
@@ -999,6 +1057,164 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
+
+      {/* Document preview modal */}
+      {previewFile && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999,
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) closePreview(); }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              maxWidth: '720px',
+              width: '92%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Preview header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '18px 24px',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {previewFile}
+                </p>
+                {!previewLoading && !previewError && previewPages.length > 0 && (
+                  <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    {previewPages.length} {previewPages.length === 1 ? 'page' : 'pages'}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={closePreview}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  padding: '4px 10px',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Preview body */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '24px',
+              }}
+            >
+              {previewLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
+                  <span style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          background: 'var(--accent)',
+                          borderRadius: '50%',
+                          animation: `thryvPulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>Loading preview…</span>
+                </div>
+              )}
+
+              {previewError && (
+                <p style={{ margin: 0, color: 'var(--error)', fontSize: '0.88rem', textAlign: 'center', padding: '40px 0' }}>
+                  {previewError}
+                </p>
+              )}
+
+              {!previewLoading && !previewError && previewPages.map((pg) => (
+                <div key={pg.page} style={{ marginBottom: '24px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.12em',
+                        textTransform: 'uppercase',
+                        color: 'var(--accent)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Page {pg.page}
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                  </div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontSize: '0.84rem',
+                      lineHeight: '1.7',
+                      color: 'var(--text)',
+                      fontFamily: 'inherit',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '16px 18px',
+                    }}
+                  >
+                    {pg.content}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation modal */}
       {deleteConfirm && (
