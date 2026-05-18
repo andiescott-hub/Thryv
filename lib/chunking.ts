@@ -254,6 +254,14 @@ function chunkPlainText(filePath: string): Chunk[] {
 }
 
 // ---------------------------------------------------------------------------
+// Raw text (used by the paste-text upload route)
+// ---------------------------------------------------------------------------
+
+export function chunkText(text: string, filename: string): Chunk[] {
+  return splitText(text, filename, 1, 0);
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 

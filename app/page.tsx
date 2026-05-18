@@ -407,6 +407,11 @@ export default function ChatPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  // Paste-text modal state
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasteTitle, setPasteTitle] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -624,6 +629,39 @@ export default function ChatPage() {
 
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function handlePasteSubmit() {
+    const text = pasteText.trim();
+    if (!text || uploading) return;
+
+    setUploading(true);
+    setUploadStatus(`Ingesting pasted text…`);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/upload-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, title: pasteTitle.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setError(data.error ?? 'Upload failed.');
+        setUploadStatus(null);
+      } else {
+        setUploadStatus(`Ingested "${data.filename}" (${data.chunks} chunks).`);
+        await fetchIngestedFiles();
+        setPasteOpen(false);
+        setPasteText('');
+        setPasteTitle('');
+      }
+    } catch {
+      setError('Network error – could not reach the server.');
+      setUploadStatus(null);
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -847,8 +885,8 @@ export default function ChatPage() {
             Document Intelligence
           </span>
 
-          {/* Upload button — desktop only */}
-          <div className="desktop-only" style={{ alignItems: 'center' }}>
+          {/* Upload buttons — desktop only */}
+          <div className="desktop-only" style={{ alignItems: 'center', gap: '8px' }}>
             <input
               ref={fileInputRef}
               type="file"
@@ -857,6 +895,33 @@ export default function ChatPage() {
               onChange={handleFileUpload}
               style={{ display: 'none' }}
             />
+            <button
+              onClick={() => setPasteOpen(true)}
+              disabled={uploading}
+              style={{
+                background: 'none',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--text)',
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                padding: '9px 18px',
+                fontSize: '0.84rem',
+                fontFamily: 'inherit',
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!uploading) {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                  (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                }
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)';
+              }}
+            >
+              Paste Text
+            </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
@@ -1211,6 +1276,194 @@ export default function ChatPage() {
                   </pre>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paste-text modal */}
+      {pasteOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999,
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !uploading) {
+              setPasteOpen(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              maxWidth: '640px',
+              width: '92%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '18px 24px',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: '#fff' }}>
+                  Paste text to ingest
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  We&apos;ll auto-name it based on the content.
+                </p>
+              </div>
+              <button
+                onClick={() => { if (!uploading) setPasteOpen(false); }}
+                disabled={uploading}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted)',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  fontSize: '1rem',
+                  padding: '4px 10px',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="paste-title"
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Title (optional)
+                </label>
+                <input
+                  id="paste-title"
+                  type="text"
+                  value={pasteTitle}
+                  onChange={(e) => setPasteTitle(e.target.value)}
+                  placeholder="Leave blank to auto-name from content"
+                  maxLength={60}
+                  disabled={uploading}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--text)',
+                    padding: '9px 12px',
+                    fontSize: '0.88rem',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => ((e.target as HTMLInputElement).style.borderColor = 'var(--accent)')}
+                  onBlur={(e) => ((e.target as HTMLInputElement).style.borderColor = 'var(--border)')}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="paste-text"
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Text
+                </label>
+                <textarea
+                  id="paste-text"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder="Paste any text here — notes, transcripts, emails, articles, etc."
+                  rows={12}
+                  disabled={uploading}
+                  maxLength={200_000}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--text)',
+                    padding: '12px 14px',
+                    fontSize: '0.88rem',
+                    lineHeight: '1.6',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    resize: 'vertical',
+                    minHeight: '220px',
+                  }}
+                  onFocus={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--accent)')}
+                  onBlur={(e) => ((e.target as HTMLTextAreaElement).style.borderColor = 'var(--border)')}
+                />
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                  {pasteText.length.toLocaleString()} characters
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                justifyContent: 'flex-end',
+                padding: '14px 24px 18px',
+                borderTop: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => { if (!uploading) setPasteOpen(false); }}
+                disabled={uploading}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted)',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  padding: '8px 18px',
+                  fontSize: '0.84rem',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePasteSubmit}
+                disabled={uploading || pasteText.trim().length < 40}
+                className="btn-primary"
+                style={{ padding: '9px 22px' }}
+              >
+                {uploading ? 'Ingesting…' : 'Ingest Text'}
+              </button>
             </div>
           </div>
         </div>

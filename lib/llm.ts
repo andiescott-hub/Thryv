@@ -73,6 +73,54 @@ User preferences (always apply these):
 - Spelling: The company name is always spelled "Thryv" (not "Thrive", "thrive", or any other variation). If the source documents use "thrive" or "Thrive", always correct the spelling to "Thryv" in your response.`;
 
 // ---------------------------------------------------------------------------
+// Topic derivation (used by the paste-text upload route)
+// ---------------------------------------------------------------------------
+
+function sanitizeTopic(raw: string): string {
+  return raw
+    .replace(/^["'`\s]+|["'`\s]+$/g, '')
+    .replace(/[\\/:*?"<>|\n\r\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+}
+
+/**
+ * Asks the LLM for a short, descriptive topic for the given text, suitable
+ * for use as a filename. Returns an empty string on failure — callers should
+ * provide their own fallback.
+ */
+export async function deriveTopicFromText(text: string): Promise<string> {
+  const sample = text.slice(0, 2000);
+  const client = new OpenAI({
+    apiKey: process.env.LLM_API_KEY ?? '',
+    baseURL: BASE_URL,
+  });
+
+  try {
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      max_tokens: 30,
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You name short, descriptive topics for snippets of text. ' +
+            'Reply with a single topic of 3 to 6 words in Title Case, ' +
+            'no surrounding quotes, no punctuation other than spaces, ' +
+            'no file extension.',
+        },
+        { role: 'user', content: `Text:\n${sample}\n\nTopic:` },
+      ],
+    });
+    return sanitizeTopic(response.choices[0]?.message?.content ?? '');
+  } catch {
+    return '';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Query contextualization
 // ---------------------------------------------------------------------------
 
