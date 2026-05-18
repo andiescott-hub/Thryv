@@ -15,13 +15,28 @@ import { deriveTopicFromText } from '@/lib/llm';
 const MAX_TEXT_LENGTH = 200_000; // ~200 KB of UTF-8 text
 const MIN_TEXT_LENGTH = 40;
 
-// Strip unpaired UTF-16 surrogates (e.g. half of a multi-code-unit emoji that
-// was lost when the user copied a truncated snippet). Pinecone's JSON encoder
-// rejects these with "Missing low surrogate" / "Missing high surrogate".
+// Strip unpaired UTF-16 surrogates. Two sources of these in pasted text:
+//   1. The user copied a truncated snippet that lost half of an emoji.
+//   2. The chunker sliced a properly-paired emoji at a 950-char boundary.
+// Pinecone's JSON encoder rejects unpaired surrogates with "Missing low
+// surrogate" / "Missing high surrogate".
 function stripUnpairedSurrogates(s: string): string {
-  return s
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
-    .replace(/(^|[^\uD800-\uDBFF])([\uDC00-\uDFFF])/g, '$1');
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      const next = s.charCodeAt(i + 1);
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        out += s[i] + s[i + 1];
+        i++;
+      }
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      // lone low surrogate — drop
+    } else {
+      out += s[i];
+    }
+  }
+  return out;
 }
 
 function sanitizeForFilename(raw: string): string {
@@ -68,8 +83,12 @@ export async function POST(request: NextRequest) {
     }
     const filename = `${topic}.txt`;
 
-    // Chunk
-    const chunks = chunkText(text, filename);
+    // Chunk, then re-sanitize: the slice boundaries may have split a
+    // properly-paired surrogate, leaving lone surrogates at chunk edges.
+    const chunks = chunkText(text, filename).map((c) => ({
+      ...c,
+      text: stripUnpairedSurrogates(c.text),
+    }));
     if (chunks.length === 0) {
       return NextResponse.json(
         { error: 'No content could be extracted from the pasted text.' },
