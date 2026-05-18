@@ -15,6 +15,15 @@ import { deriveTopicFromText } from '@/lib/llm';
 const MAX_TEXT_LENGTH = 200_000; // ~200 KB of UTF-8 text
 const MIN_TEXT_LENGTH = 40;
 
+// Strip unpaired UTF-16 surrogates (e.g. half of a multi-code-unit emoji that
+// was lost when the user copied a truncated snippet). Pinecone's JSON encoder
+// rejects these with "Missing low surrogate" / "Missing high surrogate".
+function stripUnpairedSurrogates(s: string): string {
+  return s
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(^|[^\uD800-\uDBFF])([\uDC00-\uDFFF])/g, '$1');
+}
+
 function sanitizeForFilename(raw: string): string {
   return raw
     .replace(/[\\/:*?"<>|\n\r\t]+/g, ' ')
@@ -32,8 +41,8 @@ function fallbackTopic(text: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { text?: string; title?: string };
-    const text = typeof body.text === 'string' ? body.text : '';
-    const providedTitle = typeof body.title === 'string' ? body.title : '';
+    const text = typeof body.text === 'string' ? stripUnpairedSurrogates(body.text) : '';
+    const providedTitle = typeof body.title === 'string' ? stripUnpairedSurrogates(body.title) : '';
 
     if (text.trim().length < MIN_TEXT_LENGTH) {
       return NextResponse.json(
